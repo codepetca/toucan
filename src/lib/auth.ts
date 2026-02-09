@@ -2,8 +2,18 @@ import type { SessionData } from "@/types";
 import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
 
+function getSessionSecret(): string {
+	const secret = process.env.SESSION_SECRET;
+	if (!secret) {
+		throw new Error("SESSION_SECRET environment variable is required");
+	}
+	return secret;
+}
+
 const sessionOptions = {
-	password: process.env.SESSION_SECRET ?? "",
+	get password() {
+		return getSessionSecret();
+	},
 	cookieName: "toucan_session",
 	cookieOptions: {
 		secure: process.env.NODE_ENV === "production",

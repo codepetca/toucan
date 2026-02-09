@@ -15,8 +15,13 @@ export async function middleware(request: NextRequest) {
 
 	// Check session cookie
 	const response = NextResponse.next();
+	const secret = process.env.SESSION_SECRET;
+	if (!secret) {
+		throw new Error("SESSION_SECRET environment variable is required");
+	}
+
 	const session = await getIronSession<SessionData>(request, response, {
-		password: process.env.SESSION_SECRET ?? "",
+		password: secret,
 		cookieName: "toucan_session",
 	});
 
