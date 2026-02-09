@@ -19,6 +19,7 @@
 	},
 	"dependencies": {
 		"@duffel/api": "^2.5.0",
+		"@neondatabase/serverless": "^1.0.2",
 		"bcryptjs": "^2.4.3",
 		"drizzle-orm": "^0.38.0",
 		"iron-session": "^8.0.4",
@@ -29,7 +30,11 @@
 		"zod": "^3.24.0"
 	},
 	"pnpm": {
-		"onlyBuiltDependencies": ["@biomejs/biome", "esbuild", "sharp"]
+		"onlyBuiltDependencies": [
+			"@biomejs/biome",
+			"esbuild",
+			"sharp"
+		]
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^1.9.0",

@@ -1,5 +1,6 @@
 "use client";
 
+import { getAirport } from "@/lib/airports";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -23,6 +24,23 @@ interface Route {
 	priceDropDelta: string | null;
 	isActive: boolean;
 	latestPriceCheck: PriceCheck | null;
+}
+
+function formatAirport(iata: string): string {
+	const airport = getAirport(iata);
+	return airport ? `${airport.city} (${iata})` : iata;
+}
+
+function formatCabin(cabin: string): string {
+	return cabin
+		.split("_")
+		.map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+		.join(" ");
+}
+
+function formatDate(dateStr: string): string {
+	const d = new Date(dateStr + "T00:00:00");
+	return d.toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "numeric" });
 }
 
 export default function Dashboard() {
@@ -51,42 +69,59 @@ export default function Dashboard() {
 	}
 
 	if (loading) {
-		return <p className="text-gray-500">Loading...</p>;
+		return (
+			<div className="flex min-h-[60vh] items-center justify-center">
+				<div className="h-6 w-6 animate-spin rounded-full border-2 border-toucan-600 border-t-transparent" />
+			</div>
+		);
 	}
 
 	return (
 		<div>
-			<div className="mb-6 flex items-center justify-between">
-				<h1 className="text-2xl font-bold">Toucan</h1>
-				<div className="flex gap-3">
+			{/* Header */}
+			<div className="mb-8 flex items-center justify-between">
+				<div className="flex items-center gap-3">
+					<div className="flex h-9 w-9 items-center justify-center rounded-xl bg-toucan-600 text-sm font-bold text-white shadow-sm">
+						T
+					</div>
+					<h1 className="text-lg font-semibold tracking-tight">Toucan</h1>
+				</div>
+				<div className="flex items-center gap-2">
 					<Link
 						href="/search"
-						className="rounded bg-gray-200 px-3 py-1.5 text-sm hover:bg-gray-300"
+						className="rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
 					>
-						Search flights
+						Search
 					</Link>
 					<Link
 						href="/routes/new"
-						className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700"
+						className="rounded-lg bg-toucan-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-toucan-700 hover:shadow-md"
 					>
-						Add route
+						+ Add route
 					</Link>
 					<button
 						type="button"
 						onClick={handleLogout}
-						className="rounded bg-gray-200 px-3 py-1.5 text-sm hover:bg-gray-300"
+						className="rounded-lg px-3 py-2 text-sm font-medium text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
 					>
 						Logout
 					</button>
 				</div>
 			</div>
 
+			{/* Routes */}
 			{routes.length === 0 ? (
-				<div className="rounded border border-dashed p-8 text-center text-gray-500">
-					<p>No tracked routes yet.</p>
+				<div className="rounded-2xl border border-dashed border-gray-200 px-8 py-16 text-center">
+					<div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-toucan-50 text-toucan-600">
+						<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+							<path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/>
+						</svg>
+					</div>
+					<p className="font-medium text-gray-900">No tracked routes yet</p>
+					<p className="mt-1 text-sm text-gray-500">Start tracking a route to monitor prices</p>
 					<Link
 						href="/routes/new"
-						className="mt-2 inline-block text-blue-600 hover:underline"
+						className="mt-4 inline-flex items-center rounded-lg bg-toucan-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-toucan-700 hover:shadow-md"
 					>
 						Add your first route
 					</Link>
@@ -106,34 +141,60 @@ function RouteCard({ route }: { route: Route }) {
 	const check = route.latestPriceCheck;
 
 	return (
-		<div className="rounded border bg-white p-4 shadow-sm">
-			<div className="flex items-start justify-between">
-				<div>
-					<p className="font-semibold">
-						{route.origin} → {route.destination}
-					</p>
-					<p className="text-sm text-gray-500">
-						{route.outboundDate}
-						{route.returnDate ? ` – ${route.returnDate}` : " (one-way)"}
-						{" · "}
-						{route.cabinClass}
-					</p>
-					<p className="mt-1 text-xs text-gray-400">
-						{route.priceTarget && `Target: $${route.priceTarget}`}
-						{route.priceTarget && route.priceDropDelta && " · "}
-						{route.priceDropDelta && `Drop alert: $${route.priceDropDelta}`}
-					</p>
+		<div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
+			<div className="flex items-start justify-between gap-4">
+				<div className="min-w-0 flex-1">
+					{/* Route */}
+					<div className="flex items-center gap-2">
+						<span className="font-semibold text-gray-900">{formatAirport(route.origin)}</span>
+						<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-gray-400">
+							<path d="M5 12h14"/>
+							<path d="m12 5 7 7-7 7"/>
+						</svg>
+						<span className="font-semibold text-gray-900">{formatAirport(route.destination)}</span>
+					</div>
+
+					{/* Details */}
+					<div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-500">
+						<span>{formatDate(route.outboundDate)}</span>
+						{route.returnDate && (
+							<>
+								<span className="text-gray-300">—</span>
+								<span>{formatDate(route.returnDate)}</span>
+							</>
+						)}
+						{!route.returnDate && <span className="text-gray-400">(one-way)</span>}
+						<span className="text-gray-200">|</span>
+						<span>{formatCabin(route.cabinClass)}</span>
+					</div>
+
+					{/* Alert config */}
+					<div className="mt-2 flex flex-wrap gap-2">
+						{route.priceTarget && (
+							<span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+								Target: ${route.priceTarget}
+							</span>
+						)}
+						{route.priceDropDelta && (
+							<span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
+								Drop alert: ${route.priceDropDelta}
+							</span>
+						)}
+					</div>
 				</div>
-				<div className="text-right">
+
+				{/* Price */}
+				<div className="shrink-0 text-right">
 					{check ? (
 						<>
-							<p className="text-lg font-bold">
-								${check.bestPrice} {check.currency}
+							<p className="text-2xl font-bold tabular-nums text-gray-900">
+								${check.bestPrice}
+								<span className="ml-1 text-xs font-normal text-gray-400">{check.currency}</span>
 							</p>
-							<p className="text-xs text-gray-500">
-								{check.airline} · {check.offerCount} offers
+							<p className="mt-0.5 text-xs text-gray-500">
+								{check.airline} · {check.offerCount} offer{check.offerCount !== 1 ? "s" : ""}
 							</p>
-							<p className="text-xs text-gray-400">
+							<p className="mt-0.5 text-xs text-gray-400">
 								{new Date(check.checkedAt).toLocaleString()}
 							</p>
 						</>
