@@ -1,15 +1,35 @@
 "use client";
 
-import { type Airport, getAirport, searchAirports } from "@/lib/airports";
+import {
+	type SearchResult,
+	getAirport,
+	resolveAirportCodes,
+	searchAirports,
+	CITY_GROUPS,
+} from "@/lib/airports";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 interface AirportInputProps {
 	id: string;
 	label: string;
-	value: string;
-	onChange: (iata: string) => void;
+	value: string; // single IATA or comma-separated (e.g. "YYZ,YTZ")
+	onChange: (value: string) => void;
 	placeholder?: string;
 	required?: boolean;
+}
+
+function displayLabel(value: string): string {
+	if (!value) return "";
+	const codes = resolveAirportCodes(value);
+	if (codes.length === 1) {
+		const airport = getAirport(codes[0]);
+		return airport ? `${airport.iata} — ${airport.city}` : codes[0];
+	}
+	const group = CITY_GROUPS.find(
+		(g) => g.codes.length === codes.length && codes.every((c) => g.codes.includes(c))
+	);
+	if (group) return `${group.city} — All airports (${group.codes.join(", ")})`;
+	return codes.join(", ");
 }
 
 export default function AirportInput({
@@ -21,7 +41,7 @@ export default function AirportInput({
 	required = false,
 }: AirportInputProps) {
 	const [query, setQuery] = useState("");
-	const [results, setResults] = useState<Airport[]>([]);
+	const [results, setResults] = useState<SearchResult[]>([]);
 	const [open, setOpen] = useState(false);
 	const [highlightIndex, setHighlightIndex] = useState(-1);
 	const wrapperRef = useRef<HTMLDivElement>(null);
@@ -30,12 +50,7 @@ export default function AirportInput({
 	// Sync display text when value changes externally
 	useEffect(() => {
 		if (value) {
-			const airport = getAirport(value);
-			if (airport) {
-				setQuery(`${airport.iata} — ${airport.city}`);
-			} else {
-				setQuery(value);
-			}
+			setQuery(displayLabel(value));
 		} else {
 			setQuery("");
 		}
@@ -52,6 +67,19 @@ export default function AirportInput({
 		return () => document.removeEventListener("mousedown", handleClick);
 	}, []);
 
+	const selectResult = useCallback(
+		(result: SearchResult) => {
+			if (result.type === "airport") {
+				onChange(result.airport.iata);
+			} else {
+				onChange(result.group.codes.join(","));
+			}
+			setOpen(false);
+			setHighlightIndex(-1);
+		},
+		[onChange]
+	);
+
 	const handleInput = useCallback(
 		(text: string) => {
 			setQuery(text);
@@ -60,13 +88,11 @@ export default function AirportInput({
 			setOpen(matches.length > 0);
 			setHighlightIndex(-1);
 
-			// If they typed an exact 3-letter code match, auto-select it
-			if (text.trim().length === 3) {
-				const exact = matches.find(
-					(a) => a.iata.toLowerCase() === text.trim().toLowerCase()
-				);
-				if (exact && matches.length === 1) {
-					selectAirport(exact);
+			// If they typed an exact 3-letter code match with only one result, auto-select
+			if (text.trim().length === 3 && matches.length === 1 && matches[0].type === "airport") {
+				const a = matches[0].airport;
+				if (a.iata.toLowerCase() === text.trim().toLowerCase()) {
+					selectResult(matches[0]);
 					return;
 				}
 			}
@@ -76,22 +102,12 @@ export default function AirportInput({
 				onChange("");
 			}
 		},
-		[value, onChange]
-	);
-
-	const selectAirport = useCallback(
-		(airport: Airport) => {
-			onChange(airport.iata);
-			setQuery(`${airport.iata} — ${airport.city}`);
-			setOpen(false);
-			setHighlightIndex(-1);
-		},
-		[onChange]
+		[value, onChange, selectResult]
 	);
 
 	const handleKeyDown = useCallback(
 		(e: React.KeyboardEvent) => {
-			if (!open) return;
+			if (!open || results.length === 0) return;
 
 			if (e.key === "ArrowDown") {
 				e.preventDefault();
@@ -99,14 +115,15 @@ export default function AirportInput({
 			} else if (e.key === "ArrowUp") {
 				e.preventDefault();
 				setHighlightIndex((i) => Math.max(i - 1, 0));
-			} else if (e.key === "Enter" && highlightIndex >= 0) {
+			} else if (e.key === "Enter" || e.key === "Tab") {
+				const idx = highlightIndex >= 0 ? highlightIndex : 0;
 				e.preventDefault();
-				selectAirport(results[highlightIndex]);
+				selectResult(results[idx]);
 			} else if (e.key === "Escape") {
 				setOpen(false);
 			}
 		},
-		[open, highlightIndex, results, selectAirport]
+		[open, highlightIndex, results, selectResult]
 	);
 
 	const handleFocus = useCallback(() => {
@@ -118,16 +135,15 @@ export default function AirportInput({
 	}, [query, value]);
 
 	const handleBlur = useCallback(() => {
-		// If they typed something but didn't select, try to match
 		setTimeout(() => {
 			if (!value && query.trim()) {
 				const matches = searchAirports(query.trim());
 				if (matches.length === 1) {
-					selectAirport(matches[0]);
+					selectResult(matches[0]);
 				}
 			}
 		}, 200);
-	}, [value, query, selectAirport]);
+	}, [value, query, selectResult]);
 
 	return (
 		<div ref={wrapperRef} className="relative">
@@ -148,18 +164,17 @@ export default function AirportInput({
 				autoComplete="off"
 				className="w-full rounded-lg border border-gray-200 bg-white px-3.5 py-2.5 text-sm transition-colors placeholder:text-gray-400 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
 			/>
-			{/* Hidden input to carry the actual IATA value for form validation */}
 			<input type="hidden" name={id} value={value} />
 
 			{open && results.length > 0 && (
 				<ul className="absolute z-50 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
-					{results.map((airport, i) => (
-						<li key={airport.iata}>
+					{results.map((result, i) => (
+						<li key={result.type === "airport" ? result.airport.iata : `city-${result.group.city}`}>
 							<button
 								type="button"
 								onMouseDown={(e) => {
 									e.preventDefault();
-									selectAirport(airport);
+									selectResult(result);
 								}}
 								onMouseEnter={() => setHighlightIndex(i)}
 								className={`flex w-full items-center gap-3 px-3.5 py-2.5 text-left text-sm transition-colors ${
@@ -168,15 +183,31 @@ export default function AirportInput({
 										: "text-gray-700 hover:bg-gray-50"
 								}`}
 							>
-								<span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-gray-600">
-									{airport.iata}
-								</span>
-								<span className="truncate">
-									{airport.city}
-									<span className="ml-1 text-gray-400">
-										— {airport.name}
-									</span>
-								</span>
+								{result.type === "city" ? (
+									<>
+										<span className="shrink-0 rounded bg-toucan-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-toucan-700">
+											{result.group.codes.join("+")}
+										</span>
+										<span className="truncate">
+											{result.group.city}
+											<span className="ml-1 text-gray-400">
+												— All airports
+											</span>
+										</span>
+									</>
+								) : (
+									<>
+										<span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-gray-600">
+											{result.airport.iata}
+										</span>
+										<span className="truncate">
+											{result.airport.city}
+											<span className="ml-1 text-gray-400">
+												— {result.airport.name}
+											</span>
+										</span>
+									</>
+								)}
 							</button>
 						</li>
 					))}

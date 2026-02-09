@@ -5,6 +5,47 @@ export interface Airport {
 	country: string;
 }
 
+export interface CityGroup {
+	city: string;
+	country: string;
+	codes: string[];
+}
+
+export interface Airline {
+	code: string;
+	name: string;
+}
+
+// Common airlines for filtering (focused on Canadian routes)
+export const AIRLINES: Airline[] = [
+	{ code: "PD", name: "Porter Airlines" },
+	{ code: "AC", name: "Air Canada" },
+	{ code: "WS", name: "WestJet" },
+	{ code: "TS", name: "Air Transat" },
+	{ code: "F8", name: "Flair Airlines" },
+	{ code: "AA", name: "American Airlines" },
+	{ code: "UA", name: "United Airlines" },
+	{ code: "DL", name: "Delta Air Lines" },
+	{ code: "BA", name: "British Airways" },
+	{ code: "LH", name: "Lufthansa" },
+	{ code: "AF", name: "Air France" },
+];
+
+// Cities with multiple airports — shown as a single option in the autocomplete
+export const CITY_GROUPS: CityGroup[] = [
+	{ city: "Toronto", country: "CA", codes: ["YYZ", "YTZ"] },
+	{ city: "New York", country: "US", codes: ["JFK", "LGA", "EWR"] },
+	{ city: "London", country: "GB", codes: ["LHR", "LGW", "STN", "LTN"] },
+	{ city: "Paris", country: "FR", codes: ["CDG", "ORY"] },
+	{ city: "Chicago", country: "US", codes: ["ORD", "MDW"] },
+	{ city: "Washington", country: "US", codes: ["IAD", "DCA"] },
+	{ city: "Tokyo", country: "JP", codes: ["NRT", "HND"] },
+	{ city: "Milan", country: "IT", codes: ["FCO", "MXP"] },
+	{ city: "San Francisco Bay", country: "US", codes: ["SFO", "OAK", "SJC"] },
+	{ city: "Miami/Fort Lauderdale", country: "US", codes: ["MIA", "FLL"] },
+	{ city: "Houston", country: "US", codes: ["IAH"] },
+];
+
 // Major world airports — biased toward North America, Europe, and common long-haul destinations
 export const AIRPORTS: Airport[] = [
 	// Canada
@@ -175,28 +216,78 @@ export const AIRPORTS: Airport[] = [
 
 const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-export function searchAirports(query: string, limit = 8): Airport[] {
+export type SearchResult =
+	| { type: "airport"; airport: Airport }
+	| { type: "city"; group: CityGroup };
+
+export function searchAirports(query: string, limit = 8): SearchResult[] {
 	const q = normalize(query.trim());
 	if (!q) return [];
 
-	// Exact IATA match goes first
-	const exactIata = AIRPORTS.filter((a) => a.iata.toLowerCase() === q);
+	const results: SearchResult[] = [];
 
-	// Then prefix matches on IATA
-	const iataPrefix = AIRPORTS.filter(
-		(a) => a.iata.toLowerCase().startsWith(q) && a.iata.toLowerCase() !== q
+	// City groups that match (show before individual airports)
+	const cityMatches = CITY_GROUPS.filter(
+		(g) =>
+			normalize(g.city).includes(q) ||
+			g.codes.some((c) => c.toLowerCase().startsWith(q))
 	);
+	for (const group of cityMatches) {
+		results.push({ type: "city", group });
+	}
 
-	// Then matches on city or airport name
+	// Exact IATA match
+	const exactIata = AIRPORTS.filter((a) => a.iata.toLowerCase() === q);
+	for (const a of exactIata) results.push({ type: "airport", airport: a });
+
+	// Prefix matches on IATA (skip those already in city groups)
+	const cityIatas = new Set(cityMatches.flatMap((g) => g.codes));
+	const iataPrefix = AIRPORTS.filter(
+		(a) =>
+			a.iata.toLowerCase().startsWith(q) &&
+			a.iata.toLowerCase() !== q &&
+			!cityIatas.has(a.iata)
+	);
+	for (const a of iataPrefix) results.push({ type: "airport", airport: a });
+
+	// Name matches (skip exact IATA and those in city groups)
+	const seenIatas = new Set([
+		...cityIatas,
+		...exactIata.map((a) => a.iata),
+		...iataPrefix.map((a) => a.iata),
+	]);
 	const nameMatches = AIRPORTS.filter(
 		(a) =>
-			!a.iata.toLowerCase().startsWith(q) &&
+			!seenIatas.has(a.iata) &&
 			(normalize(a.city).includes(q) || normalize(a.name).includes(q))
 	);
+	for (const a of nameMatches) results.push({ type: "airport", airport: a });
 
-	return [...exactIata, ...iataPrefix, ...nameMatches].slice(0, limit);
+	return results.slice(0, limit);
 }
 
 export function getAirport(iata: string): Airport | undefined {
 	return AIRPORTS.find((a) => a.iata === iata.toUpperCase());
+}
+
+/** Resolve a value (single IATA or comma-separated) to an array of IATA codes */
+export function resolveAirportCodes(value: string): string[] {
+	if (!value) return [];
+	return value.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean);
+}
+
+/** Get display label for an airport value (handles both single and multi) */
+export function formatAirportValue(value: string): string {
+	const codes = resolveAirportCodes(value);
+	if (codes.length === 0) return "";
+	if (codes.length === 1) {
+		const airport = getAirport(codes[0]);
+		return airport ? `${airport.city} (${airport.iata})` : codes[0];
+	}
+	// Multi-airport — find the city group
+	const group = CITY_GROUPS.find(
+		(g) => g.codes.length === codes.length && codes.every((c) => g.codes.includes(c))
+	);
+	if (group) return `${group.city} (${group.codes.join(", ")})`;
+	return codes.join(", ");
 }

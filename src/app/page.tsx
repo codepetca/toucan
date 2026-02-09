@@ -1,6 +1,6 @@
 "use client";
 
-import { getAirport } from "@/lib/airports";
+import { formatAirportValue } from "@/lib/airports";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -27,8 +27,7 @@ interface Route {
 }
 
 function formatAirport(iata: string): string {
-	const airport = getAirport(iata);
-	return airport ? `${airport.city} (${iata})` : iata;
+	return formatAirportValue(iata);
 }
 
 function formatCabin(cabin: string): string {

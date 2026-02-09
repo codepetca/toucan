@@ -5,13 +5,13 @@ import { desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-const iataCode = z.string().length(3).toUpperCase();
+const iataList = z.string().regex(/^[A-Z]{3}(,[A-Z]{3})*$/i).transform((s) => s.toUpperCase());
 const dateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 const createRouteSchema = z
 	.object({
-		origin: iataCode,
-		destination: iataCode,
+		origin: iataList,
+		destination: iataList,
 		outboundDate: dateString,
 		returnDate: dateString.optional(),
 		cabinClass: z
@@ -69,21 +69,34 @@ export async function POST(request: Request) {
 
 		const data = parsed.data;
 
-		const [route] = await db
+		const origins = data.origin.split(",");
+		const destinations = data.destination.split(",");
+
+		// Create one route per origin/destination pair
+		const pairs: { origin: string; destination: string }[] = [];
+		for (const o of origins) {
+			for (const d of destinations) {
+				if (o !== d) pairs.push({ origin: o, destination: d });
+			}
+		}
+
+		const created = await db
 			.insert(routes)
-			.values({
-				userId: session.userId,
-				origin: data.origin,
-				destination: data.destination,
-				outboundDate: data.outboundDate,
-				returnDate: data.returnDate ?? null,
-				cabinClass: data.cabinClass,
-				priceTarget: data.priceTarget?.toString() ?? null,
-				priceDropDelta: data.priceDropDelta?.toString() ?? null,
-			})
+			.values(
+				pairs.map((pair) => ({
+					userId: session.userId,
+					origin: pair.origin,
+					destination: pair.destination,
+					outboundDate: data.outboundDate,
+					returnDate: data.returnDate ?? null,
+					cabinClass: data.cabinClass,
+					priceTarget: data.priceTarget?.toString() ?? null,
+					priceDropDelta: data.priceDropDelta?.toString() ?? null,
+				}))
+			)
 			.returning();
 
-		return NextResponse.json(route, { status: 201 });
+		return NextResponse.json(created.length === 1 ? created[0] : created, { status: 201 });
 	} catch {
 		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 	}

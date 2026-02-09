@@ -3,9 +3,11 @@ import { createDuffelProvider } from "@/lib/providers/duffel";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+const iataList = z.string().regex(/^[A-Z]{3}(,[A-Z]{3})*$/i).transform((s) => s.toUpperCase());
+
 const searchSchema = z.object({
-	origin: z.string().length(3).toUpperCase(),
-	destination: z.string().length(3).toUpperCase(),
+	origin: iataList,
+	destination: iataList,
 	outboundDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 	returnDate: z
 		.string()
@@ -44,13 +46,42 @@ export async function POST(request: Request) {
 	const provider = createDuffelProvider(token);
 	const data = parsed.data;
 
+	const origins = data.origin.split(",");
+	const destinations = data.destination.split(",");
+
+	// Build all origin/destination pairs
+	const pairs: { origin: string; destination: string }[] = [];
+	for (const o of origins) {
+		for (const d of destinations) {
+			if (o !== d) pairs.push({ origin: o, destination: d });
+		}
+	}
+
 	try {
-		const offers = await provider.searchOffers({
-			origin: data.origin,
-			destination: data.destination,
-			outboundDate: data.outboundDate,
-			returnDate: data.returnDate,
-			cabinClass: data.cabinClass,
+		// Search all pairs in parallel
+		const results = await Promise.all(
+			pairs.map((pair) =>
+				provider
+					.searchOffers({
+						origin: pair.origin,
+						destination: pair.destination,
+						outboundDate: data.outboundDate,
+						returnDate: data.returnDate,
+						cabinClass: data.cabinClass,
+					})
+					.catch((err) => {
+						console.error(`Search failed for ${pair.origin}->${pair.destination}:`, err);
+						return [];
+					})
+			)
+		);
+
+		// Merge and deduplicate by offer ID
+		const seen = new Set<string>();
+		const offers = results.flat().filter((offer) => {
+			if (seen.has(offer.id)) return false;
+			seen.add(offer.id);
+			return true;
 		});
 
 		return NextResponse.json({ offers });
