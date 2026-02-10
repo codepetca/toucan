@@ -16,6 +16,7 @@ const searchSchema = z.object({
 	cabinClass: z
 		.enum(["economy", "premium_economy", "business", "first"])
 		.default("economy"),
+	maxStops: z.number().int().min(0).max(2).optional(),
 });
 
 export async function POST(request: Request) {
@@ -68,6 +69,7 @@ export async function POST(request: Request) {
 						outboundDate: data.outboundDate,
 						returnDate: data.returnDate,
 						cabinClass: data.cabinClass,
+						maxConnections: data.maxStops,
 					})
 					.catch((err) => {
 						console.error(`Search failed for ${pair.origin}->${pair.destination}:`, err);

@@ -32,6 +32,7 @@ export default function SearchPage() {
 	const [outboundDate, setOutboundDate] = useState("");
 	const [returnDate, setReturnDate] = useState("");
 	const [cabinClass, setCabinClass] = useState("economy");
+	const [maxStops, setMaxStops] = useState("any");
 	const [selectedAirlines, setSelectedAirlines] = useState<string[]>([]);
 	const [showAdvanced, setShowAdvanced] = useState(false);
 	const [offers, setOffers] = useState<Offer[]>([]);
@@ -72,6 +73,7 @@ export default function SearchPage() {
 					outboundDate,
 					returnDate: returnDate || undefined,
 					cabinClass,
+					maxStops: maxStops !== "any" ? Number(maxStops) : undefined,
 				}),
 			});
 
@@ -130,7 +132,7 @@ export default function SearchPage() {
 						required
 					/>
 				</div>
-				<div className="mt-4 grid grid-cols-3 gap-4">
+				<div className="mt-4 grid grid-cols-4 gap-4">
 					<div>
 						<label htmlFor="outbound" className="mb-1.5 block text-sm font-medium text-gray-700">
 							Depart
@@ -170,6 +172,22 @@ export default function SearchPage() {
 							<option value="premium_economy">Premium Economy</option>
 							<option value="business">Business</option>
 							<option value="first">First</option>
+						</select>
+					</div>
+					<div>
+						<label htmlFor="stops" className="mb-1.5 block text-sm font-medium text-gray-700">
+							Stops
+						</label>
+						<select
+							id="stops"
+							value={maxStops}
+							onChange={(e) => setMaxStops(e.target.value)}
+							className="w-full rounded-lg border border-gray-200 bg-white px-3.5 py-2.5 text-sm transition-colors focus:border-toucan-500 focus:outline-none focus:ring-2 focus:ring-toucan-500/20"
+						>
+							<option value="any">Any</option>
+							<option value="0">Nonstop</option>
+							<option value="1">1 stop max</option>
+							<option value="2">2 stops max</option>
 						</select>
 					</div>
 				</div>
@@ -297,6 +315,15 @@ export default function SearchPage() {
 											{offer.segments[0]?.flightNumber && (
 												<span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-500">
 													{offer.segments[0].flightNumber}
+												</span>
+											)}
+											{offer.segments.length === 1 ? (
+												<span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+													Nonstop
+												</span>
+											) : (
+												<span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+													{offer.segments.length - 1} stop{offer.segments.length > 2 ? "s" : ""}
 												</span>
 											)}
 											{i === 0 && (

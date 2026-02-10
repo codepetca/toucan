@@ -34,6 +34,9 @@ export class DuffelProvider implements FlightSearchProvider {
 			slices,
 			passengers: [{ type: "adult" }],
 			cabin_class: input.cabinClass,
+			...(input.maxConnections !== undefined && {
+				max_connections: input.maxConnections,
+			}),
 		});
 
 		const offers = response.data.offers ?? [];
