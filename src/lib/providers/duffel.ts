@@ -34,9 +34,7 @@ export class DuffelProvider implements FlightSearchProvider {
 			slices,
 			passengers: [{ type: "adult" }],
 			cabin_class: input.cabinClass,
-			...(input.maxConnections !== undefined && {
-				max_connections: input.maxConnections,
-			}),
+			max_connections: input.maxConnections,
 		});
 
 		const offers = response.data.offers ?? [];
@@ -62,6 +60,7 @@ export class DuffelProvider implements FlightSearchProvider {
 			);
 
 			const firstSegment = segments[0];
+			const maxStops = Math.max(...offer.slices.map((s) => s.segments.length - 1));
 
 			return {
 				id: offer.id,
@@ -69,6 +68,7 @@ export class DuffelProvider implements FlightSearchProvider {
 				currency: offer.total_currency,
 				airline: firstSegment?.airline ?? "Unknown",
 				segments,
+				maxStops,
 			};
 		});
 	}

@@ -69,7 +69,7 @@ export async function POST(request: Request) {
 						outboundDate: data.outboundDate,
 						returnDate: data.returnDate,
 						cabinClass: data.cabinClass,
-						maxConnections: data.maxStops,
+						maxConnections: data.maxStops as 0 | 1 | 2 | undefined,
 					})
 					.catch((err) => {
 						console.error(`Search failed for ${pair.origin}->${pair.destination}:`, err);

@@ -18,6 +18,7 @@ function makeOffer(overrides: Partial<FlightOffer> = {}): FlightOffer {
 				destination: "YHZ",
 			},
 		],
+		maxStops: 0,
 		...overrides,
 	};
 }

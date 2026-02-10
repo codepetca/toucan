@@ -4,7 +4,7 @@ export interface SearchInput {
 	outboundDate: string; // YYYY-MM-DD
 	returnDate?: string; // YYYY-MM-DD, optional for one-way
 	cabinClass: "economy" | "premium_economy" | "business" | "first";
-	maxConnections?: number; // 0 = nonstop only, 1 = up to 1 stop, etc.
+	maxConnections?: 0 | 1 | 2; // 0 = nonstop only, 1 = up to 1 stop, etc.
 	passengers?: number;
 }
 
@@ -24,6 +24,7 @@ export interface FlightOffer {
 	currency: string;
 	airline: string; // operating carrier of first segment
 	segments: FlightSegment[];
+	maxStops: number; // max stops on any single leg (0 = nonstop each way)
 }
 
 export interface FlightSearchProvider {

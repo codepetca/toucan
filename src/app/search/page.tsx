@@ -3,6 +3,7 @@
 import AirportInput from "@/components/AirportInput";
 import { AIRLINES, formatAirportValue } from "@/lib/airports";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 interface Segment {
@@ -20,6 +21,7 @@ interface Offer {
 	currency: string;
 	airline: string;
 	segments: Segment[];
+	maxStops: number;
 }
 
 function formatTime(iso: string): string {
@@ -27,6 +29,7 @@ function formatTime(iso: string): string {
 }
 
 export default function SearchPage() {
+	const router = useRouter();
 	const [origin, setOrigin] = useState("");
 	const [destination, setDestination] = useState("");
 	const [outboundDate, setOutboundDate] = useState("");
@@ -40,6 +43,11 @@ export default function SearchPage() {
 	const [error, setError] = useState("");
 	const [searched, setSearched] = useState(false);
 	const [visibleCount, setVisibleCount] = useState(5);
+	const [showTrackForm, setShowTrackForm] = useState(false);
+	const [priceTarget, setPriceTarget] = useState("");
+	const [priceDropDelta, setPriceDropDelta] = useState("");
+	const [tracking, setTracking] = useState(false);
+	const [trackError, setTrackError] = useState("");
 
 	function toggleAirline(name: string) {
 		setSelectedAirlines((prev) =>
@@ -56,12 +64,48 @@ export default function SearchPage() {
 			)
 		: offers;
 
+	async function handleTrack() {
+		if (!priceTarget && !priceDropDelta) {
+			setTrackError("Set at least one of price target or drop alert");
+			return;
+		}
+		setTrackError("");
+		setTracking(true);
+		try {
+			const res = await fetch("/api/routes", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					origin: origin.toUpperCase(),
+					destination: destination.toUpperCase(),
+					outboundDate,
+					returnDate: returnDate || undefined,
+					cabinClass,
+					priceTarget: priceTarget ? Number(priceTarget) : undefined,
+					priceDropDelta: priceDropDelta ? Number(priceDropDelta) : undefined,
+				}),
+			});
+			if (!res.ok) {
+				const data = await res.json();
+				setTrackError(data.error || "Failed to create route");
+				return;
+			}
+			router.push("/");
+		} catch {
+			setTrackError("Something went wrong");
+		} finally {
+			setTracking(false);
+		}
+	}
+
 	async function handleSearch(e: React.FormEvent) {
 		e.preventDefault();
 		setError("");
 		setLoading(true);
 		setSearched(false);
 		setVisibleCount(5);
+		setShowTrackForm(false);
+		setTrackError("");
 
 		try {
 			const res = await fetch("/api/search", {
@@ -290,6 +334,102 @@ export default function SearchPage() {
 				</div>
 			)}
 
+			{searched && offers.length > 0 && (
+				<div className="mb-6">
+					{!showTrackForm ? (
+						<button
+							type="button"
+							onClick={() => setShowTrackForm(true)}
+							className="w-full rounded-xl border-2 border-dashed border-toucan-200 bg-toucan-50/50 px-4 py-3.5 text-sm font-medium text-toucan-700 transition-colors hover:border-toucan-300 hover:bg-toucan-50"
+						>
+							Track this route — get alerts when prices change
+						</button>
+					) : (
+						<div className="rounded-xl border border-toucan-200 bg-white p-5 shadow-sm">
+							<div className="mb-4 flex items-center justify-between">
+								<h3 className="font-semibold text-gray-900">Track this route</h3>
+								<button
+									type="button"
+									onClick={() => { setShowTrackForm(false); setTrackError(""); }}
+									className="text-sm text-gray-400 hover:text-gray-600"
+								>
+									Cancel
+								</button>
+							</div>
+							<div className="mb-4 rounded-lg bg-gray-50 px-3.5 py-2.5 text-sm text-gray-600">
+								<span className="font-medium text-gray-900">{formatAirportValue(origin.toUpperCase())}</span>
+								{" → "}
+								<span className="font-medium text-gray-900">{formatAirportValue(destination.toUpperCase())}</span>
+								<span className="mx-2 text-gray-300">|</span>
+								{outboundDate}
+								{returnDate && ` — ${returnDate}`}
+								<span className="mx-2 text-gray-300">|</span>
+								{cabinClass.replace("_", " ")}
+								{sorted.length > 0 && (
+									<>
+										<span className="mx-2 text-gray-300">|</span>
+										Best price: <span className="font-medium text-gray-900">${sorted[0].totalAmount.toFixed(2)}</span>
+									</>
+								)}
+							</div>
+							<div className="grid grid-cols-2 gap-4">
+								<div>
+									<label htmlFor="priceTarget" className="mb-1.5 block text-sm font-medium text-gray-700">
+										Price target <span className="text-gray-400">(optional)</span>
+									</label>
+									<div className="relative">
+										<span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+										<input
+											id="priceTarget"
+											type="number"
+											min="1"
+											step="1"
+											value={priceTarget}
+											onChange={(e) => setPriceTarget(e.target.value)}
+											placeholder="e.g. 350"
+											className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-7 pr-3.5 text-sm transition-colors focus:border-toucan-500 focus:outline-none focus:ring-2 focus:ring-toucan-500/20"
+										/>
+									</div>
+									<p className="mt-1 text-xs text-gray-400">Alert when price drops to this amount</p>
+								</div>
+								<div>
+									<label htmlFor="priceDropDelta" className="mb-1.5 block text-sm font-medium text-gray-700">
+										Drop alert <span className="text-gray-400">(optional)</span>
+									</label>
+									<div className="relative">
+										<span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+										<input
+											id="priceDropDelta"
+											type="number"
+											min="1"
+											step="1"
+											value={priceDropDelta}
+											onChange={(e) => setPriceDropDelta(e.target.value)}
+											placeholder="e.g. 20"
+											className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-7 pr-3.5 text-sm transition-colors focus:border-toucan-500 focus:outline-none focus:ring-2 focus:ring-toucan-500/20"
+										/>
+									</div>
+									<p className="mt-1 text-xs text-gray-400">Alert when price drops by this much</p>
+								</div>
+							</div>
+							{trackError && (
+								<div className="mt-3 rounded-lg bg-red-50 px-3.5 py-2.5 text-sm text-red-700">
+									{trackError}
+								</div>
+							)}
+							<button
+								type="button"
+								onClick={handleTrack}
+								disabled={tracking}
+								className="mt-4 w-full rounded-lg bg-toucan-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-toucan-700 hover:shadow-md disabled:opacity-50"
+							>
+								{tracking ? "Saving..." : "Start tracking"}
+							</button>
+						</div>
+					)}
+				</div>
+			)}
+
 			{sorted.length > 0 && (
 				<div>
 					<p className="mb-3 text-sm font-medium text-gray-500">
@@ -317,13 +457,13 @@ export default function SearchPage() {
 													{offer.segments[0].flightNumber}
 												</span>
 											)}
-											{offer.segments.length === 1 ? (
+											{offer.maxStops === 0 ? (
 												<span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
 													Nonstop
 												</span>
 											) : (
 												<span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
-													{offer.segments.length - 1} stop{offer.segments.length > 2 ? "s" : ""}
+													{offer.maxStops} stop{offer.maxStops > 1 ? "s" : ""}
 												</span>
 											)}
 											{i === 0 && (

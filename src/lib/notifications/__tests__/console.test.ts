@@ -17,6 +17,7 @@ const baseOffer = {
 			destination: "YHZ",
 		},
 	],
+	maxStops: 0,
 };
 
 describe("ConsoleNotificationChannel", () => {
