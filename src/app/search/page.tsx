@@ -2,9 +2,11 @@
 
 import AirportInput from "@/components/AirportInput";
 import { AIRLINES, formatAirportValue } from "@/lib/airports";
+import type { RecentSearch } from "@/lib/local-storage";
+import { loadAdvancedOptions, loadRecentSearches, saveAdvancedOptions, saveRecentSearches } from "@/lib/local-storage";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 
 interface Segment {
 	airline: string;
@@ -30,12 +32,13 @@ function formatTime(iso: string): string {
 
 export default function SearchPage() {
 	const router = useRouter();
+	const searchParams = useSearchParams();
 	const [origin, setOrigin] = useState("");
 	const [destination, setDestination] = useState("");
 	const [outboundDate, setOutboundDate] = useState("");
 	const [returnDate, setReturnDate] = useState("");
 	const [cabinClass, setCabinClass] = useState("economy");
-	const [maxStops, setMaxStops] = useState("any");
+	const [maxStops, setMaxStops] = useState("0");
 	const [selectedAirlines, setSelectedAirlines] = useState<string[]>([]);
 	const [showAdvanced, setShowAdvanced] = useState(false);
 	const [offers, setOffers] = useState<Offer[]>([]);
@@ -48,6 +51,32 @@ export default function SearchPage() {
 	const [priceDropDelta, setPriceDropDelta] = useState("");
 	const [tracking, setTracking] = useState(false);
 	const [trackError, setTrackError] = useState("");
+
+	// Load saved advanced options and pre-fill from query params
+	useEffect(() => {
+		const saved = loadAdvancedOptions();
+		if (saved) {
+			setMaxStops(saved.maxStops);
+			setSelectedAirlines(saved.selectedAirlines);
+			if (saved.selectedAirlines.length > 0) setShowAdvanced(true);
+		}
+		// Pre-fill from query params (from recent search click)
+		const o = searchParams.get("origin");
+		const d = searchParams.get("destination");
+		const dep = searchParams.get("outboundDate");
+		if (o) setOrigin(o);
+		if (d) setDestination(d);
+		if (dep) setOutboundDate(dep);
+		const ret = searchParams.get("returnDate");
+		if (ret) setReturnDate(ret);
+		const cab = searchParams.get("cabinClass");
+		if (cab) setCabinClass(cab);
+	}, [searchParams]);
+
+	// Save advanced options when they change
+	useEffect(() => {
+		saveAdvancedOptions({ maxStops, selectedAirlines });
+	}, [maxStops, selectedAirlines]);
 
 	function toggleAirline(name: string) {
 		setSelectedAirlines((prev) =>
@@ -130,6 +159,26 @@ export default function SearchPage() {
 			const data = await res.json();
 			setOffers(data.offers);
 			setSearched(true);
+
+			// Save to recent searches
+			const search: RecentSearch = {
+				origin: origin.toUpperCase(),
+				destination: destination.toUpperCase(),
+				outboundDate,
+				returnDate: returnDate || undefined,
+				cabinClass,
+				resultCount: data.offers.length,
+				bestPrice: data.offers.length > 0
+					? Math.min(...data.offers.map((o: Offer) => o.totalAmount))
+					: undefined,
+				currency: data.offers[0]?.currency,
+				searchedAt: new Date().toISOString(),
+			};
+			const recent = loadRecentSearches();
+			const deduped = recent.filter(
+				(r) => !(r.origin === search.origin && r.destination === search.destination && r.outboundDate === search.outboundDate && r.returnDate === search.returnDate),
+			);
+			saveRecentSearches([search, ...deduped].slice(0, 5));
 		} catch {
 			setError("Something went wrong");
 		} finally {

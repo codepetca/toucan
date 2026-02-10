@@ -1,6 +1,8 @@
 "use client";
 
 import { formatAirportValue } from "@/lib/airports";
+import type { RecentSearch } from "@/lib/local-storage";
+import { loadRecentSearches } from "@/lib/local-storage";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -45,6 +47,7 @@ function formatDate(dateStr: string): string {
 export default function Dashboard() {
 	const router = useRouter();
 	const [routes, setRoutes] = useState<Route[]>([]);
+	const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
 	const [loading, setLoading] = useState(true);
 
 	useEffect(() => {
@@ -59,6 +62,7 @@ export default function Dashboard() {
 			setLoading(false);
 		}
 		fetchRoutes();
+		setRecentSearches(loadRecentSearches());
 	}, [router]);
 
 	async function handleLogout() {
@@ -130,6 +134,56 @@ export default function Dashboard() {
 					{routes.map((route) => (
 						<RouteCard key={route.id} route={route} />
 					))}
+				</div>
+			)}
+
+			{/* Recent searches */}
+			{recentSearches.length > 0 && (
+				<div className="mt-8">
+					<h2 className="mb-3 text-sm font-medium text-gray-500">Recent searches</h2>
+					<div className="space-y-2">
+						{recentSearches.map((search) => {
+							const params = new URLSearchParams({
+								origin: search.origin,
+								destination: search.destination,
+								outboundDate: search.outboundDate,
+								cabinClass: search.cabinClass,
+							});
+							if (search.returnDate) params.set("returnDate", search.returnDate);
+							return (
+								<Link
+									key={`${search.origin}-${search.destination}-${search.outboundDate}-${search.returnDate ?? ""}`}
+									href={`/search?${params.toString()}`}
+									className="flex items-center justify-between rounded-lg border border-gray-100 bg-white px-4 py-3 text-sm transition-colors hover:border-gray-200 hover:bg-gray-50"
+								>
+									<div className="flex items-center gap-2">
+										<span className="font-medium text-gray-900">
+											{formatAirportValue(search.origin)}
+										</span>
+										<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300">
+											<path d="M5 12h14"/>
+											<path d="m12 5 7 7-7 7"/>
+										</svg>
+										<span className="font-medium text-gray-900">
+											{formatAirportValue(search.destination)}
+										</span>
+										<span className="text-gray-400">
+											{formatDate(search.outboundDate)}
+											{search.returnDate && ` — ${formatDate(search.returnDate)}`}
+										</span>
+									</div>
+									<div className="flex items-center gap-3 text-xs text-gray-400">
+										{search.bestPrice != null && (
+											<span className="font-medium text-gray-600">
+												from ${search.bestPrice.toFixed(0)} {search.currency}
+											</span>
+										)}
+										<span>{search.resultCount} offer{search.resultCount !== 1 ? "s" : ""}</span>
+									</div>
+								</Link>
+							);
+						})}
+					</div>
 				</div>
 			)}
 		</div>
