@@ -1,7 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { checkRoute } from "../src/lib/core/price-checker";
+import { type PriceHistory, checkRoute } from "../src/lib/core/price-checker";
 import { alerts, priceChecks, routes } from "../src/lib/db/schema";
 import { ConsoleNotificationChannel } from "../src/lib/notifications/console";
 import { createDuffelProvider } from "../src/lib/providers/duffel";
@@ -43,13 +43,29 @@ async function main() {
 				`Checking ${route.origin} → ${route.destination} (${route.outboundDate})`,
 			);
 
-			// Get last price check
-			const [lastCheck] = await db
-				.select()
+			// Get price check history (most recent first)
+			const historyRows = await db
+				.select({
+					bestPrice: priceChecks.bestPrice,
+					checkedAt: priceChecks.checkedAt,
+				})
 				.from(priceChecks)
 				.where(eq(priceChecks.routeId, route.id))
-				.orderBy(desc(priceChecks.checkedAt))
-				.limit(1);
+				.orderBy(desc(priceChecks.checkedAt));
+
+			const lastCheck = historyRows[0] ?? undefined;
+
+			// Build price history for smart alerts
+			const priceHistory: PriceHistory = {
+				entries: historyRows.map((r) => ({
+					price: Number(r.bestPrice),
+					checkedAt: r.checkedAt,
+				})),
+				allTimeLow:
+					historyRows.length > 0
+						? Math.min(...historyRows.map((r) => Number(r.bestPrice)))
+						: null,
+			};
 
 			// Get last alert
 			const [lastAlert] = await db
@@ -85,6 +101,7 @@ async function main() {
 				lastAlert ? lastAlert.alertedAt : null,
 				COOLDOWN_HOURS,
 				now,
+				priceHistory,
 			);
 
 			// Write price_check row
@@ -109,14 +126,20 @@ async function main() {
 			if (result.alert) {
 				const { reason, offer } = result.alert;
 
+				let previousBest: string | null = null;
+				if (reason.type === "price_drop") {
+					previousBest = reason.previousBest.toString();
+				} else if (reason.type === "all_time_low") {
+					previousBest = reason.previousLow.toString();
+				} else if (reason.type === "below_recent_average") {
+					previousBest = reason.average.toString();
+				}
+
 				await db.insert(alerts).values({
 					routeId: route.id,
 					reasonType: reason.type,
 					price: offer.totalAmount.toString(),
-					previousBest:
-						reason.type === "price_drop"
-							? reason.previousBest.toString()
-							: null,
+					previousBest,
 					offerSummary: {
 						airline: offer.airline,
 						segments: offer.segments,

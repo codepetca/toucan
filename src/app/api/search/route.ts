@@ -3,7 +3,10 @@ import { createDuffelProvider } from "@/lib/providers/duffel";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-const iataList = z.string().regex(/^[A-Z]{3}(,[A-Z]{3})*$/i).transform((s) => s.toUpperCase());
+const iataList = z
+	.string()
+	.regex(/^[A-Z]{3}(,[A-Z]{3})*$/i)
+	.transform((s) => s.toUpperCase());
 
 const searchSchema = z.object({
 	origin: iataList,
@@ -72,10 +75,13 @@ export async function POST(request: Request) {
 						maxConnections: data.maxStops as 0 | 1 | 2 | undefined,
 					})
 					.catch((err) => {
-						console.error(`Search failed for ${pair.origin}->${pair.destination}:`, err);
+						console.error(
+							`Search failed for ${pair.origin}->${pair.destination}:`,
+							err,
+						);
 						return [];
-					})
-			)
+					}),
+			),
 		);
 
 		// Merge and deduplicate by offer ID

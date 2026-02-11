@@ -60,7 +60,9 @@ export class DuffelProvider implements FlightSearchProvider {
 			);
 
 			const firstSegment = segments[0];
-			const maxStops = Math.max(...offer.slices.map((s) => s.segments.length - 1));
+			const maxStops = Math.max(
+				...offer.slices.map((s) => s.segments.length - 1),
+			);
 
 			return {
 				id: offer.id,

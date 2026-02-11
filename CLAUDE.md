@@ -72,6 +72,19 @@ Single user, seeded via `pnpm seed` (reads `SEED_USER_EMAIL` and `SEED_USER_PASS
 - `pnpm db:generate` — generate Drizzle migration files
 - `pnpm db:migrate` — apply migrations to database
 
+## Troubleshooting
+
+### Database connection timeout (`CONNECT_TIMEOUT`)
+
+If the app hangs on the loading spinner or DB queries fail with `CONNECT_TIMEOUT` to `*.neon.tech:5432`, the VPN is likely not connected. The Neon Postgres database requires VPN access.
+
+**Fix:** Turn on your VPN, then restart the dev server.
+
+You can verify connectivity with:
+```sh
+source .env.local && node -e "const p=require('postgres');const s=p(process.env.POSTGRES_URL,{connect_timeout:5});s\`SELECT 1\`.then(()=>{console.log('DB OK');s.end()}).catch(e=>{console.error('DB unreachable:',e.code);s.end()})"
+```
+
 ## Environment Variables
 
 - `POSTGRES_URL` — pooled Postgres connection string (web app)

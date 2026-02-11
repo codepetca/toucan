@@ -1,11 +1,11 @@
 "use client";
 
 import {
+	CITY_GROUPS,
 	type SearchResult,
 	getAirport,
 	resolveAirportCodes,
 	searchAirports,
-	CITY_GROUPS,
 } from "@/lib/airports";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -26,7 +26,9 @@ function displayLabel(value: string): string {
 		return airport ? `${airport.iata} — ${airport.city}` : codes[0];
 	}
 	const group = CITY_GROUPS.find(
-		(g) => g.codes.length === codes.length && codes.every((c) => g.codes.includes(c))
+		(g) =>
+			g.codes.length === codes.length &&
+			codes.every((c) => g.codes.includes(c)),
 	);
 	if (group) return `${group.city} — All airports (${group.codes.join(", ")})`;
 	return codes.join(", ");
@@ -59,7 +61,10 @@ export default function AirportInput({
 	// Close dropdown on outside click
 	useEffect(() => {
 		function handleClick(e: MouseEvent) {
-			if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+			if (
+				wrapperRef.current &&
+				!wrapperRef.current.contains(e.target as Node)
+			) {
 				setOpen(false);
 			}
 		}
@@ -77,7 +82,7 @@ export default function AirportInput({
 			setOpen(false);
 			setHighlightIndex(-1);
 		},
-		[onChange]
+		[onChange],
 	);
 
 	const handleInput = useCallback(
@@ -89,7 +94,11 @@ export default function AirportInput({
 			setHighlightIndex(-1);
 
 			// If they typed an exact 3-letter code match with only one result, auto-select
-			if (text.trim().length === 3 && matches.length === 1 && matches[0].type === "airport") {
+			if (
+				text.trim().length === 3 &&
+				matches.length === 1 &&
+				matches[0].type === "airport"
+			) {
 				const a = matches[0].airport;
 				if (a.iata.toLowerCase() === text.trim().toLowerCase()) {
 					selectResult(matches[0]);
@@ -102,7 +111,7 @@ export default function AirportInput({
 				onChange("");
 			}
 		},
-		[value, onChange, selectResult]
+		[value, onChange, selectResult],
 	);
 
 	const handleKeyDown = useCallback(
@@ -123,7 +132,7 @@ export default function AirportInput({
 				setOpen(false);
 			}
 		},
-		[open, highlightIndex, results, selectResult]
+		[open, highlightIndex, results, selectResult],
 	);
 
 	const handleFocus = useCallback(() => {
@@ -147,7 +156,10 @@ export default function AirportInput({
 
 	return (
 		<div ref={wrapperRef} className="relative">
-			<label htmlFor={id} className="mb-1.5 block text-sm font-medium text-gray-700">
+			<label
+				htmlFor={id}
+				className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+			>
 				{label}
 			</label>
 			<input
@@ -162,14 +174,20 @@ export default function AirportInput({
 				placeholder={placeholder}
 				required={required}
 				autoComplete="off"
-				className="w-full rounded-lg border border-gray-200 bg-white px-3.5 py-2.5 text-sm transition-colors placeholder:text-gray-400 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+				className="w-full rounded-lg border border-gray-200 bg-white px-3.5 py-2.5 text-sm transition-colors placeholder:text-gray-400 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20 dark:border-gray-700 dark:bg-gray-800 dark:placeholder:text-gray-500"
 			/>
 			<input type="hidden" name={id} value={value} />
 
 			{open && results.length > 0 && (
-				<ul className="absolute z-50 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+				<ul className="absolute z-50 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900">
 					{results.map((result, i) => (
-						<li key={result.type === "airport" ? result.airport.iata : `city-${result.group.city}`}>
+						<li
+							key={
+								result.type === "airport"
+									? result.airport.iata
+									: `city-${result.group.city}`
+							}
+						>
 							<button
 								type="button"
 								onMouseDown={(e) => {
@@ -179,30 +197,30 @@ export default function AirportInput({
 								onMouseEnter={() => setHighlightIndex(i)}
 								className={`flex w-full items-center gap-3 px-3.5 py-2.5 text-left text-sm transition-colors ${
 									i === highlightIndex
-										? "bg-teal-50 text-teal-900"
-										: "text-gray-700 hover:bg-gray-50"
+										? "bg-teal-50 text-teal-900 dark:bg-teal-950 dark:text-teal-200"
+										: "text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
 								}`}
 							>
 								{result.type === "city" ? (
 									<>
-										<span className="shrink-0 rounded bg-toucan-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-toucan-700">
+										<span className="shrink-0 rounded bg-toucan-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-toucan-700 dark:bg-toucan-900 dark:text-toucan-300">
 											{result.group.codes.join("+")}
 										</span>
 										<span className="truncate">
 											{result.group.city}
-											<span className="ml-1 text-gray-400">
+											<span className="ml-1 text-gray-400 dark:text-gray-500">
 												— All airports
 											</span>
 										</span>
 									</>
 								) : (
 									<>
-										<span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-gray-600">
+										<span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
 											{result.airport.iata}
 										</span>
 										<span className="truncate">
 											{result.airport.city}
-											<span className="ml-1 text-gray-400">
+											<span className="ml-1 text-gray-400 dark:text-gray-500">
 												— {result.airport.name}
 											</span>
 										</span>

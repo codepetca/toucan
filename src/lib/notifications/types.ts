@@ -7,6 +7,13 @@ export type AlertReason =
 			previousBest: number;
 			newPrice: number;
 			delta: number;
+	  }
+	| { type: "all_time_low"; previousLow: number; newLow: number }
+	| {
+			type: "below_recent_average";
+			average: number;
+			price: number;
+			percentBelow: number;
 	  };
 
 export interface AlertPayload {

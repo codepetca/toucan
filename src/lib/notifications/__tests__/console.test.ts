@@ -73,4 +73,57 @@ describe("ConsoleNotificationChannel", () => {
 		);
 		spy.mockRestore();
 	});
+
+	it("formats all_time_low alert correctly", async () => {
+		const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+		const channel = new ConsoleNotificationChannel();
+
+		const payload: AlertPayload = {
+			origin: "YYZ",
+			destination: "YHZ",
+			outboundDate: "2025-06-15",
+			reason: {
+				type: "all_time_low",
+				previousLow: 200,
+				newLow: 170,
+			},
+			offer: baseOffer,
+		};
+
+		await channel.send(payload);
+
+		expect(spy).toHaveBeenCalledWith(
+			expect.stringContaining("new all-time low"),
+		);
+		expect(spy).toHaveBeenCalledWith(expect.stringContaining("previous: $200"));
+		expect(spy).toHaveBeenCalledWith(expect.stringContaining("$170"));
+		spy.mockRestore();
+	});
+
+	it("formats below_recent_average alert correctly", async () => {
+		const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+		const channel = new ConsoleNotificationChannel();
+
+		const payload: AlertPayload = {
+			origin: "YYZ",
+			destination: "YHZ",
+			outboundDate: "2025-06-15",
+			reason: {
+				type: "below_recent_average",
+				average: 300,
+				price: 250,
+				percentBelow: 1 / 6,
+			},
+			offer: baseOffer,
+		};
+
+		await channel.send(payload);
+
+		expect(spy).toHaveBeenCalledWith(
+			expect.stringContaining("17% below recent average"),
+		);
+		expect(spy).toHaveBeenCalledWith(expect.stringContaining("of $300"));
+		expect(spy).toHaveBeenCalledWith(expect.stringContaining("$250"));
+		spy.mockRestore();
+	});
 });

@@ -1,28 +1,27 @@
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { priceChecks, routes } from "@/lib/db/schema";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-const iataList = z.string().regex(/^[A-Z]{3}(,[A-Z]{3})*$/i).transform((s) => s.toUpperCase());
+const iataList = z
+	.string()
+	.regex(/^[A-Z]{3}(,[A-Z]{3})*$/i)
+	.transform((s) => s.toUpperCase());
 const dateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
-const createRouteSchema = z
-	.object({
-		origin: iataList,
-		destination: iataList,
-		outboundDate: dateString,
-		returnDate: dateString.optional(),
-		cabinClass: z
-			.enum(["economy", "premium_economy", "business", "first"])
-			.default("economy"),
-		priceTarget: z.number().positive().optional(),
-		priceDropDelta: z.number().positive().optional(),
-	})
-	.refine((data) => data.priceTarget || data.priceDropDelta, {
-		message: "At least one of priceTarget or priceDropDelta must be set",
-	});
+const createRouteSchema = z.object({
+	origin: iataList,
+	destination: iataList,
+	outboundDate: dateString,
+	returnDate: dateString.optional(),
+	cabinClass: z
+		.enum(["economy", "premium_economy", "business", "first"])
+		.default("economy"),
+	priceTarget: z.number().positive().optional(),
+	priceDropDelta: z.number().positive().optional(),
+});
 
 export async function GET() {
 	try {
@@ -31,7 +30,7 @@ export async function GET() {
 		const userRoutes = await db
 			.select()
 			.from(routes)
-			.where(eq(routes.userId, session.userId))
+			.where(and(eq(routes.userId, session.userId), eq(routes.isActive, true)))
 			.orderBy(desc(routes.createdAt));
 
 		// Get latest price check for each route
@@ -92,11 +91,13 @@ export async function POST(request: Request) {
 					cabinClass: data.cabinClass,
 					priceTarget: data.priceTarget?.toString() ?? null,
 					priceDropDelta: data.priceDropDelta?.toString() ?? null,
-				}))
+				})),
 			)
 			.returning();
 
-		return NextResponse.json(created.length === 1 ? created[0] : created, { status: 201 });
+		return NextResponse.json(created.length === 1 ? created[0] : created, {
+			status: 201,
+		});
 	} catch {
 		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 	}
