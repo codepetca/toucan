@@ -158,7 +158,7 @@ export default function AirportInput({
 		<div ref={wrapperRef} className="relative">
 			<label
 				htmlFor={id}
-				className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+				className="mb-1.5 block text-sm font-medium text-fg-muted"
 			>
 				{label}
 			</label>
@@ -174,12 +174,12 @@ export default function AirportInput({
 				placeholder={placeholder}
 				required={required}
 				autoComplete="off"
-				className="w-full rounded-lg border border-gray-200 bg-white px-3.5 py-2.5 text-sm transition-colors placeholder:text-gray-400 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20 dark:border-gray-700 dark:bg-gray-800 dark:placeholder:text-gray-500"
+				className="w-full rounded-lg border border-border bg-surface px-3.5 py-2.5 text-sm transition-colors placeholder:text-fg-subtle focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
 			/>
 			<input type="hidden" name={id} value={value} />
 
 			{open && results.length > 0 && (
-				<ul className="absolute z-50 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900">
+				<ul className="absolute z-50 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-border bg-surface py-1 shadow-lg">
 					{results.map((result, i) => (
 						<li
 							key={
@@ -197,30 +197,30 @@ export default function AirportInput({
 								onMouseEnter={() => setHighlightIndex(i)}
 								className={`flex w-full items-center gap-3 px-3.5 py-2.5 text-left text-sm transition-colors ${
 									i === highlightIndex
-										? "bg-teal-50 text-teal-900 dark:bg-teal-950 dark:text-teal-200"
-										: "text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
+										? "bg-teal-50 text-teal-900"
+										: "text-fg-muted hover:bg-surface-muted"
 								}`}
 							>
 								{result.type === "city" ? (
 									<>
-										<span className="shrink-0 rounded bg-toucan-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-toucan-700 dark:bg-toucan-900 dark:text-toucan-300">
+										<span className="shrink-0 rounded bg-toucan-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-toucan-700">
 											{result.group.codes.join("+")}
 										</span>
 										<span className="truncate">
 											{result.group.city}
-											<span className="ml-1 text-gray-400 dark:text-gray-500">
+											<span className="ml-1 text-fg-subtle">
 												— All airports
 											</span>
 										</span>
 									</>
 								) : (
 									<>
-										<span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+										<span className="shrink-0 rounded bg-surface-muted px-1.5 py-0.5 font-mono text-xs font-semibold text-fg-muted">
 											{result.airport.iata}
 										</span>
 										<span className="truncate">
 											{result.airport.city}
-											<span className="ml-1 text-gray-400 dark:text-gray-500">
+											<span className="ml-1 text-fg-subtle">
 												— {result.airport.name}
 											</span>
 										</span>

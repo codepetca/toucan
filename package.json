@@ -15,7 +15,8 @@
 		"db:migrate": "drizzle-kit migrate",
 		"db:studio": "drizzle-kit studio",
 		"seed": "tsx scripts/seed.ts",
-		"check-prices": "tsx scripts/check-prices.ts"
+		"check-prices": "tsx scripts/check-prices.ts",
+		"dev:open": "bash ./scripts/dev-open.sh"
 	},
 	"dependencies": {
 		"@duffel/api": "^2.5.0",
@@ -32,7 +33,11 @@
 		"zod": "^3.24.0"
 	},
 	"pnpm": {
-		"onlyBuiltDependencies": ["@biomejs/biome", "esbuild", "sharp"]
+		"onlyBuiltDependencies": [
+			"@biomejs/biome",
+			"esbuild",
+			"sharp"
+		]
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^1.9.0",

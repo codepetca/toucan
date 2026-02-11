@@ -20,7 +20,7 @@ export default function RootLayout({
 }) {
 	return (
 		<html lang="en" className={dmSans.variable} suppressHydrationWarning>
-			<body className="min-h-screen bg-stone-50 font-[family-name:var(--font-dm-sans)] text-gray-900 antialiased dark:bg-gray-950 dark:text-gray-100">
+			<body className="min-h-screen bg-canvas font-[family-name:var(--font-dm-sans)] text-fg antialiased">
 				<Providers>
 					<main className="mx-auto max-w-3xl px-5 py-8">{children}</main>
 				</Providers>
