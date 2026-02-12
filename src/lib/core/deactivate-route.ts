@@ -1,13 +1,13 @@
 import { routes } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
-import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
+import type { NeonDatabase } from "drizzle-orm/neon-serverless";
 
 type DeactivateResult =
 	| { success: true }
 	| { success: false; error: "not_found" };
 
 export async function deactivateRoute(
-	db: PostgresJsDatabase<Record<string, unknown>>,
+	db: NeonDatabase<Record<string, unknown>>,
 	routeId: string,
 	userId: string,
 ): Promise<DeactivateResult> {

@@ -1,5 +1,5 @@
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
+import { Pool } from "@neondatabase/serverless";
+import { drizzle } from "drizzle-orm/neon-serverless";
 import * as schema from "./schema";
 
 function createDb() {
@@ -7,8 +7,8 @@ function createDb() {
 	if (!connectionString) {
 		throw new Error("POSTGRES_URL environment variable is required");
 	}
-	const client = postgres(connectionString);
-	return drizzle(client, { schema });
+	const pool = new Pool({ connectionString });
+	return drizzle(pool, { schema });
 }
 
 let _db: ReturnType<typeof createDb> | undefined;

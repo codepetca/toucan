@@ -1,6 +1,6 @@
+import { Pool } from "@neondatabase/serverless";
 import { desc, eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
+import { drizzle } from "drizzle-orm/neon-serverless";
 import { type PriceHistory, checkRoute } from "../src/lib/core/price-checker";
 import { alerts, priceChecks, routes } from "../src/lib/db/schema";
 import { ConsoleNotificationChannel } from "../src/lib/notifications/console";
@@ -23,8 +23,8 @@ async function main() {
 		process.exit(1);
 	}
 
-	const client = postgres(connectionString);
-	const db = drizzle(client);
+	const pool = new Pool({ connectionString });
+	const db = drizzle(pool);
 	const provider = createDuffelProvider(duffelToken);
 	const notifier = new ConsoleNotificationChannel();
 	const now = new Date();
@@ -164,7 +164,6 @@ async function main() {
 	}
 
 	console.log("Done.");
-	await client.end();
 }
 
 main().catch((err) => {

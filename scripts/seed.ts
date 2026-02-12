@@ -1,5 +1,5 @@
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
+import { Pool } from "@neondatabase/serverless";
+import { drizzle } from "drizzle-orm/neon-serverless";
 import { hashPassword } from "../src/lib/crypto";
 import { users } from "../src/lib/db/schema";
 
@@ -20,8 +20,8 @@ async function seed() {
 		process.exit(1);
 	}
 
-	const client = postgres(connectionString);
-	const db = drizzle(client);
+	const pool = new Pool({ connectionString });
+	const db = drizzle(pool);
 
 	const passwordHash = await hashPassword(password);
 
@@ -31,7 +31,6 @@ async function seed() {
 	});
 
 	console.log(`Seeded user: ${email}`);
-	await client.end();
 }
 
 seed().catch((err) => {
