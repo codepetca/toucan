@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+	:root {
+		color-scheme: light;
+		--color-canvas: 247 250 252;
+		--color-surface: 252 254 255;
+		--color-surface-muted: 247 250 252;
+		--color-border: 236 242 248;
+		--color-fg: 15 23 42;
+		--color-fg-muted: 51 65 85;
+		--color-fg-subtle: 100 116 139;
+	}
+
+	.dark {
+		color-scheme: dark;
+		--color-canvas: 2 6 23;
+		--color-surface: 16 25 43;
+		--color-surface-muted: 21 33 52;
+		--color-border: 32 45 64;
+		--color-fg: 241 245 249;
+		--color-fg-muted: 203 213 225;
+		--color-fg-subtle: 148 163 184;
+	}
+
+	body {
+		font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+	}
+}
