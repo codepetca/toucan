@@ -11,9 +11,12 @@ const COOLDOWN_HOURS = 12;
 const DEFAULT_CURRENCY = "CAD";
 
 async function main() {
-	const connectionString = process.env.POSTGRES_URL_NON_POOLING;
+	const connectionString =
+		process.env.POSTGRES_URL_NON_POOLING ?? process.env.POSTGRES_URL;
 	if (!connectionString) {
-		console.error("POSTGRES_URL_NON_POOLING environment variable is required");
+		console.error(
+			"POSTGRES_URL_NON_POOLING (or POSTGRES_URL) environment variable is required",
+		);
 		process.exit(1);
 	}
 
