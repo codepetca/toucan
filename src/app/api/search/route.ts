@@ -1,5 +1,5 @@
 import { requireAuth } from "@/lib/auth";
-import { createDuffelProvider } from "@/lib/providers/duffel";
+import { createAmadeusProvider } from "@/lib/providers/amadeus";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -39,15 +39,21 @@ export async function POST(request: Request) {
 		);
 	}
 
-	const token = process.env.DUFFEL_API_TOKEN;
-	if (!token) {
+	const amadeusClientId = process.env.AMADEUS_CLIENT_ID;
+	const amadeusClientSecret = process.env.AMADEUS_CLIENT_SECRET;
+	if (!amadeusClientId || !amadeusClientSecret) {
 		return NextResponse.json(
-			{ error: "Duffel API not configured" },
+			{ error: "Amadeus API not configured" },
 			{ status: 500 },
 		);
 	}
 
-	const provider = createDuffelProvider(token);
+	const provider = createAmadeusProvider({
+		clientId: amadeusClientId,
+		clientSecret: amadeusClientSecret,
+		environment:
+			process.env.AMADEUS_ENV === "production" ? "production" : "test",
+	});
 	const data = parsed.data;
 
 	const origins = data.origin.split(",");
@@ -94,7 +100,7 @@ export async function POST(request: Request) {
 
 		return NextResponse.json({ offers });
 	} catch (err) {
-		console.error("Duffel search failed:", err);
+		console.error("Amadeus search failed:", err);
 		return NextResponse.json(
 			{ error: "Flight search failed" },
 			{ status: 502 },

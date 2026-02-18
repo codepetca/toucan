@@ -29,4 +29,6 @@ jobs:
         env:
           POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
           POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
-          DUFFEL_API_TOKEN: ${{ secrets.DUFFEL_API_TOKEN }}
+          AMADEUS_CLIENT_ID: ${{ secrets.AMADEUS_CLIENT_ID }}
+          AMADEUS_CLIENT_SECRET: ${{ secrets.AMADEUS_CLIENT_SECRET }}
+          AMADEUS_ENV: ${{ secrets.AMADEUS_ENV }}

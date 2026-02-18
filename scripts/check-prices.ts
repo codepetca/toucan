@@ -4,7 +4,7 @@ import { drizzle } from "drizzle-orm/neon-serverless";
 import { type PriceHistory, checkRoute } from "../src/lib/core/price-checker";
 import { alerts, priceChecks, routes } from "../src/lib/db/schema";
 import { ConsoleNotificationChannel } from "../src/lib/notifications/console";
-import { createDuffelProvider } from "../src/lib/providers/duffel";
+import { createAmadeusProvider } from "../src/lib/providers/amadeus";
 import type { SearchInput } from "../src/lib/providers/types";
 
 const COOLDOWN_HOURS = 12;
@@ -20,15 +20,23 @@ async function main() {
 		process.exit(1);
 	}
 
-	const duffelToken = process.env.DUFFEL_API_TOKEN;
-	if (!duffelToken) {
-		console.error("DUFFEL_API_TOKEN environment variable is required");
+	const amadeusClientId = process.env.AMADEUS_CLIENT_ID;
+	const amadeusClientSecret = process.env.AMADEUS_CLIENT_SECRET;
+	if (!amadeusClientId || !amadeusClientSecret) {
+		console.error(
+			"AMADEUS_CLIENT_ID and AMADEUS_CLIENT_SECRET environment variables are required",
+		);
 		process.exit(1);
 	}
 
 	const pool = new Pool({ connectionString });
 	const db = drizzle(pool);
-	const provider = createDuffelProvider(duffelToken);
+	const provider = createAmadeusProvider({
+		clientId: amadeusClientId,
+		clientSecret: amadeusClientSecret,
+		environment:
+			process.env.AMADEUS_ENV === "production" ? "production" : "test",
+	});
 	const notifier = new ConsoleNotificationChannel();
 	const now = new Date();
 
@@ -78,7 +86,7 @@ async function main() {
 				.orderBy(desc(alerts.alertedAt))
 				.limit(1);
 
-			// Search via Duffel
+			// Search via Amadeus
 			const searchInput: SearchInput = {
 				origin: route.origin,
 				destination: route.destination,
