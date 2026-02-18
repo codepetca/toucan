@@ -1,13 +1,17 @@
 "use client";
 
 import AirportInput from "@/components/AirportInput";
+import FilterPanel, {
+	DEFAULT_FILTERS,
+	type FilterValues,
+} from "@/components/FilterPanel";
 import { formatAirportValue } from "@/lib/airports";
 import { fetchRoutes } from "@/lib/core/fetch-routes";
 import type { RecentSearch } from "@/lib/local-storage";
 import { loadRecentSearches, saveRecentSearches } from "@/lib/local-storage";
-import { Trash2 } from "lucide-react";
+import { SlidersHorizontal, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 interface PriceCheck {
 	bestPrice: string;
@@ -86,7 +90,10 @@ export default function Dashboard() {
 	const [destination, setDestination] = useState("");
 	const [outboundDate, setOutboundDate] = useState("");
 	const [returnDate, setReturnDate] = useState("");
-	const [cabinClass, setCabinClass] = useState("economy");
+
+	const [filters, setFilters] = useState<FilterValues>({
+		...DEFAULT_FILTERS,
+	});
 
 	const [offers, setOffers] = useState<Offer[]>([]);
 	const [searchLoading, setSearchLoading] = useState(false);
@@ -97,6 +104,63 @@ export default function Dashboard() {
 	const [priceDropDelta, setPriceDropDelta] = useState("");
 	const [tracking, setTracking] = useState(false);
 	const [trackError, setTrackError] = useState("");
+	const [filterOpen, setFilterOpen] = useState(false);
+	const [showAllResults, setShowAllResults] = useState(false);
+
+	const availableAirlines = useMemo(() => {
+		return [...new Set(offers.map((o) => o.airline))].sort();
+	}, [offers]);
+
+	const filteredAndSorted = useMemo(() => {
+		let result = [...offers];
+
+		// Preferred airlines: soft filter — show preferred if any match, otherwise show all
+		if (filters.selectedAirlines.length > 0) {
+			const preferred = result.filter((o) =>
+				filters.selectedAirlines.includes(o.airline),
+			);
+			if (preferred.length > 0) {
+				result = preferred;
+			}
+		}
+
+		if (filters.priceMin) {
+			result = result.filter((o) => o.totalAmount >= Number(filters.priceMin));
+		}
+		if (filters.priceMax) {
+			result = result.filter((o) => o.totalAmount <= Number(filters.priceMax));
+		}
+
+		switch (filters.sortBy) {
+			case "price":
+				result.sort((a, b) => a.totalAmount - b.totalAmount);
+				break;
+			case "stops":
+				result.sort(
+					(a, b) => a.maxStops - b.maxStops || a.totalAmount - b.totalAmount,
+				);
+				break;
+			case "departure":
+				result.sort((a, b) => {
+					const aTime = new Date(a.segments[0].departingAt).getTime();
+					const bTime = new Date(b.segments[0].departingAt).getTime();
+					return aTime - bTime;
+				});
+				break;
+		}
+
+		return result;
+	}, [offers, filters]);
+
+	const activeFilterCount = useMemo(() => {
+		let count = 0;
+		if (filters.cabinClass !== "economy") count++;
+		if (filters.maxStops !== null) count++;
+		if (filters.selectedAirlines.length > 0) count++;
+		if (filters.sortBy !== "price") count++;
+		if (filters.priceMin || filters.priceMax) count++;
+		return count;
+	}, [filters]);
 
 	useEffect(() => {
 		async function loadRoutes() {
@@ -124,6 +188,13 @@ export default function Dashboard() {
 		setSearched(false);
 		setShowTrackForm(false);
 		setTrackError("");
+		setShowAllResults(false);
+
+		setFilters((prev) => ({
+			...prev,
+			priceMin: "",
+			priceMax: "",
+		}));
 
 		try {
 			const res = await fetch("/api/search", {
@@ -134,7 +205,8 @@ export default function Dashboard() {
 					destination: destination.toUpperCase(),
 					outboundDate,
 					returnDate: returnDate || undefined,
-					cabinClass,
+					cabinClass: filters.cabinClass,
+					maxStops: filters.maxStops ?? undefined,
 				}),
 			});
 
@@ -153,7 +225,7 @@ export default function Dashboard() {
 				destination: destination.toUpperCase(),
 				outboundDate,
 				returnDate: returnDate || undefined,
-				cabinClass,
+				cabinClass: filters.cabinClass,
 				resultCount: data.offers.length,
 				bestPrice:
 					data.offers.length > 0
@@ -194,7 +266,7 @@ export default function Dashboard() {
 					destination: destination.toUpperCase(),
 					outboundDate,
 					returnDate: returnDate || undefined,
-					cabinClass,
+					cabinClass: filters.cabinClass,
 					priceTarget: priceTarget ? Number(priceTarget) : undefined,
 					priceDropDelta: priceDropDelta ? Number(priceDropDelta) : undefined,
 				}),
@@ -226,7 +298,7 @@ export default function Dashboard() {
 		setDestination(search.destination);
 		setOutboundDate(search.outboundDate);
 		setReturnDate(search.returnDate ?? "");
-		setCabinClass(search.cabinClass);
+		setFilters((prev) => ({ ...prev, cabinClass: search.cabinClass }));
 		setSearched(false);
 		setOffers([]);
 		setShowTrackForm(false);
@@ -237,8 +309,6 @@ export default function Dashboard() {
 		router.push("/login");
 		router.refresh();
 	}
-
-	const sorted = [...offers].sort((a, b) => a.totalAmount - b.totalAmount);
 
 	if (loading) {
 		return (
@@ -256,7 +326,7 @@ export default function Dashboard() {
 					<button
 						type="button"
 						onClick={() => window.location.reload()}
-						className="mt-3 rounded-lg bg-toucan-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-toucan-700"
+						className="mt-3 rounded-lg bg-toucan-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-toucan-700"
 					>
 						Retry
 					</button>
@@ -265,8 +335,14 @@ export default function Dashboard() {
 		);
 	}
 
+	const displayedResults = showAllResults
+		? filteredAndSorted
+		: filteredAndSorted.slice(0, 8);
+	const hasMoreResults = filteredAndSorted.length > 8 && !showAllResults;
+
 	return (
 		<div>
+			{/* Header */}
 			<div className="mb-6 flex items-center justify-between">
 				<div className="flex items-center gap-3">
 					<div className="flex h-9 w-9 items-center justify-center rounded-xl bg-toucan-600 text-sm font-bold text-white shadow-sm">
@@ -283,323 +359,379 @@ export default function Dashboard() {
 				</button>
 			</div>
 
-			<form
-				onSubmit={handleSearch}
-				className="mb-8 rounded-xl border border-border bg-surface p-5 shadow-sm"
+			{/* Mobile filter toggle */}
+			<button
+				type="button"
+				onClick={() => setFilterOpen(!filterOpen)}
+				className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-medium text-fg-muted shadow-sm transition-colors hover:bg-surface-muted lg:hidden"
 			>
-				<div className="grid grid-cols-2 gap-4">
-					<AirportInput
-						id="origin"
-						label="From"
-						value={origin}
-						onChange={setOrigin}
-						placeholder="City or airport code"
-						required
-					/>
-					<AirportInput
-						id="destination"
-						label="To"
-						value={destination}
-						onChange={setDestination}
-						placeholder="City or airport code"
-						required
-					/>
-				</div>
-				<div className="mt-4 grid grid-cols-3 gap-4">
-					<div>
-						<label
-							htmlFor="outbound"
-							className="mb-1.5 block text-sm font-medium text-fg-muted"
-						>
-							Depart
-						</label>
-						<input
-							id="outbound"
-							type="date"
-							value={outboundDate}
-							onChange={(e) => setOutboundDate(e.target.value)}
-							required
-							className="w-full rounded-lg border border-border bg-surface px-3.5 py-2.5 text-sm transition-colors focus:border-toucan-500 focus:outline-none focus:ring-2 focus:ring-toucan-500/20"
-						/>
-					</div>
-					<div>
-						<label
-							htmlFor="return"
-							className="mb-1.5 block text-sm font-medium text-fg-muted"
-						>
-							Return <span className="text-fg-subtle">(optional)</span>
-						</label>
-						<input
-							id="return"
-							type="date"
-							value={returnDate}
-							onChange={(e) => setReturnDate(e.target.value)}
-							className="w-full rounded-lg border border-border bg-surface px-3.5 py-2.5 text-sm transition-colors focus:border-toucan-500 focus:outline-none focus:ring-2 focus:ring-toucan-500/20"
-						/>
-					</div>
-					<div>
-						<label
-							htmlFor="cabin"
-							className="mb-1.5 block text-sm font-medium text-fg-muted"
-						>
-							Cabin
-						</label>
-						<select
-							id="cabin"
-							value={cabinClass}
-							onChange={(e) => setCabinClass(e.target.value)}
-							className="w-full rounded-lg border border-border bg-surface px-3.5 py-2.5 text-sm transition-colors focus:border-toucan-500 focus:outline-none focus:ring-2 focus:ring-toucan-500/20"
-						>
-							<option value="economy">Economy</option>
-							<option value="premium_economy">Premium Economy</option>
-							<option value="business">Business</option>
-							<option value="first">First</option>
-						</select>
-					</div>
-				</div>
+				<SlidersHorizontal size={15} />
+				<span>
+					Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
+				</span>
+			</button>
 
-				{searchError && (
-					<div className="mt-4 rounded-lg bg-red-50 px-3.5 py-2.5 text-sm text-red-700">
-						{searchError}
-					</div>
-				)}
-
-				<button
-					type="submit"
-					disabled={searchLoading}
-					className="mt-5 w-full rounded-lg bg-toucan-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-toucan-700 hover:shadow-md disabled:opacity-50"
+			{/* Two-column layout: filter panel + main content */}
+			<div className="lg:grid lg:grid-cols-[260px_1fr] lg:gap-6">
+				{/* Filter Panel */}
+				<div
+					className={`mb-6 lg:mb-0 ${filterOpen ? "block" : "hidden"} lg:block`}
 				>
-					{searchLoading ? "Searching..." : "Search flights"}
-				</button>
-			</form>
-
-			{searched && offers.length === 0 && (
-				<div className="mb-8 rounded-xl border border-dashed border-border px-8 py-12 text-center">
-					<p className="font-medium text-fg">No flights found</p>
-					<p className="mt-1 text-sm text-fg-subtle">
-						Try different dates or airports
-					</p>
+					<div className="lg:sticky lg:top-8">
+						<FilterPanel
+							values={filters}
+							onChange={setFilters}
+							availableAirlines={availableAirlines}
+						/>
+					</div>
 				</div>
-			)}
 
-			{searched && offers.length > 0 && (
-				<div className="mb-8">
-					{!showTrackForm ? (
+				{/* Main content */}
+				<div>
+					{/* Search form */}
+					<form
+						onSubmit={handleSearch}
+						className="mb-8 rounded-xl border border-border bg-surface p-5 shadow-sm"
+					>
+						<div className="grid grid-cols-2 gap-4">
+							<AirportInput
+								id="origin"
+								label="From"
+								value={origin}
+								onChange={setOrigin}
+								placeholder="City or airport code"
+								required
+							/>
+							<AirportInput
+								id="destination"
+								label="To"
+								value={destination}
+								onChange={setDestination}
+								placeholder="City or airport code"
+								required
+							/>
+						</div>
+						<div className="mt-4 grid grid-cols-2 gap-4">
+							<div>
+								<label
+									htmlFor="outbound"
+									className="mb-1.5 block text-sm font-medium text-fg-muted"
+								>
+									Depart
+								</label>
+								<input
+									id="outbound"
+									type="date"
+									value={outboundDate}
+									onChange={(e) => setOutboundDate(e.target.value)}
+									required
+									className="w-full rounded-lg border border-border bg-surface px-3.5 py-2.5 text-sm transition-colors focus:border-toucan-500 focus:outline-none focus:ring-2 focus:ring-toucan-500/20"
+								/>
+							</div>
+							<div>
+								<label
+									htmlFor="return"
+									className="mb-1.5 block text-sm font-medium text-fg-muted"
+								>
+									Return <span className="text-fg-subtle">(optional)</span>
+								</label>
+								<input
+									id="return"
+									type="date"
+									value={returnDate}
+									onChange={(e) => setReturnDate(e.target.value)}
+									className="w-full rounded-lg border border-border bg-surface px-3.5 py-2.5 text-sm transition-colors focus:border-toucan-500 focus:outline-none focus:ring-2 focus:ring-toucan-500/20"
+								/>
+							</div>
+						</div>
+
+						{searchError && (
+							<div className="mt-4 rounded-lg bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-400">
+								{searchError}
+							</div>
+						)}
+
 						<button
-							type="button"
-							onClick={() => setShowTrackForm(true)}
-							className="w-full rounded-xl border-2 border-dashed border-toucan-200 bg-toucan-50/50 px-4 py-3.5 text-sm font-medium text-toucan-700 transition-colors hover:border-toucan-300 hover:bg-toucan-50"
+							type="submit"
+							disabled={searchLoading}
+							className="mt-5 w-full rounded-lg bg-toucan-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-toucan-700 hover:shadow-md disabled:opacity-50"
 						>
-							Track this route - get alerts when prices change
+							{searchLoading ? "Searching..." : "Search flights"}
 						</button>
-					) : (
-						<div className="rounded-xl border border-toucan-200 bg-surface p-5 shadow-sm">
-							<div className="mb-4 flex items-center justify-between">
-								<h3 className="font-semibold text-fg">Track this route</h3>
+					</form>
+
+					{/* No results */}
+					{searched && offers.length === 0 && (
+						<div className="mb-8 rounded-xl border border-dashed border-border px-8 py-12 text-center">
+							<p className="font-medium text-fg">No flights found</p>
+							<p className="mt-1 text-sm text-fg-subtle">
+								Try different dates or airports
+							</p>
+						</div>
+					)}
+
+					{/* Track route CTA */}
+					{searched && offers.length > 0 && (
+						<div className="mb-8">
+							{!showTrackForm ? (
 								<button
 									type="button"
-									onClick={() => {
-										setShowTrackForm(false);
-										setTrackError("");
-									}}
-									className="text-sm text-fg-subtle hover:text-fg-muted"
+									onClick={() => setShowTrackForm(true)}
+									className="w-full rounded-xl border-2 border-dashed border-toucan-200 bg-toucan-50/50 px-4 py-3.5 text-sm font-medium text-toucan-700 transition-colors hover:border-toucan-300 hover:bg-toucan-50 dark:border-toucan-800 dark:bg-toucan-950/30 dark:text-toucan-300 dark:hover:border-toucan-700 dark:hover:bg-toucan-950/50"
 								>
-									Cancel
+									Track this route - get alerts when prices change
 								</button>
-							</div>
-							<div className="mb-4 rounded-lg bg-surface-muted px-3.5 py-2.5 text-sm text-fg-muted">
-								<span className="font-medium text-fg">
-									{formatAirportValue(origin.toUpperCase())}
-								</span>
-								{" -> "}
-								<span className="font-medium text-fg">
-									{formatAirportValue(destination.toUpperCase())}
-								</span>
-								<span className="mx-2 text-fg-subtle">|</span>
-								{outboundDate}
-								{returnDate && ` - ${returnDate}`}
-							</div>
-							<div className="grid grid-cols-2 gap-4">
-								<div>
-									<label
-										htmlFor="priceTarget"
-										className="mb-1.5 block text-sm font-medium text-fg-muted"
+							) : (
+								<div className="rounded-xl border border-toucan-200 bg-surface p-5 shadow-sm dark:border-toucan-800">
+									<div className="mb-4 flex items-center justify-between">
+										<h3 className="font-semibold text-fg">Track this route</h3>
+										<button
+											type="button"
+											onClick={() => {
+												setShowTrackForm(false);
+												setTrackError("");
+											}}
+											className="text-sm text-fg-subtle hover:text-fg-muted"
+										>
+											Cancel
+										</button>
+									</div>
+									<div className="mb-4 rounded-lg bg-surface-muted px-3.5 py-2.5 text-sm text-fg-muted">
+										<span className="font-medium text-fg">
+											{formatAirportValue(origin.toUpperCase())}
+										</span>
+										{" -> "}
+										<span className="font-medium text-fg">
+											{formatAirportValue(destination.toUpperCase())}
+										</span>
+										<span className="mx-2 text-fg-subtle">|</span>
+										{outboundDate}
+										{returnDate && ` - ${returnDate}`}
+									</div>
+									<div className="grid grid-cols-2 gap-4">
+										<div>
+											<label
+												htmlFor="priceTarget"
+												className="mb-1.5 block text-sm font-medium text-fg-muted"
+											>
+												Price target{" "}
+												<span className="text-fg-subtle">(optional)</span>
+											</label>
+											<input
+												id="priceTarget"
+												type="number"
+												min="1"
+												step="1"
+												value={priceTarget}
+												onChange={(e) => setPriceTarget(e.target.value)}
+												placeholder="e.g. 350"
+												className="w-full rounded-lg border border-border bg-surface px-3.5 py-2.5 text-sm transition-colors focus:border-toucan-500 focus:outline-none focus:ring-2 focus:ring-toucan-500/20"
+											/>
+										</div>
+										<div>
+											<label
+												htmlFor="priceDropDelta"
+												className="mb-1.5 block text-sm font-medium text-fg-muted"
+											>
+												Drop alert{" "}
+												<span className="text-fg-subtle">(optional)</span>
+											</label>
+											<input
+												id="priceDropDelta"
+												type="number"
+												min="1"
+												step="1"
+												value={priceDropDelta}
+												onChange={(e) => setPriceDropDelta(e.target.value)}
+												placeholder="e.g. 20"
+												className="w-full rounded-lg border border-border bg-surface px-3.5 py-2.5 text-sm transition-colors focus:border-toucan-500 focus:outline-none focus:ring-2 focus:ring-toucan-500/20"
+											/>
+										</div>
+									</div>
+									{trackError && (
+										<div className="mt-3 rounded-lg bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-400">
+											{trackError}
+										</div>
+									)}
+									<button
+										type="button"
+										onClick={handleTrack}
+										disabled={tracking}
+										className="mt-4 w-full rounded-lg bg-toucan-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-toucan-700 hover:shadow-md disabled:opacity-50"
 									>
-										Price target{" "}
-										<span className="text-fg-subtle">(optional)</span>
-									</label>
-									<input
-										id="priceTarget"
-										type="number"
-										min="1"
-										step="1"
-										value={priceTarget}
-										onChange={(e) => setPriceTarget(e.target.value)}
-										placeholder="e.g. 350"
-										className="w-full rounded-lg border border-border bg-surface px-3.5 py-2.5 text-sm transition-colors focus:border-toucan-500 focus:outline-none focus:ring-2 focus:ring-toucan-500/20"
-									/>
-								</div>
-								<div>
-									<label
-										htmlFor="priceDropDelta"
-										className="mb-1.5 block text-sm font-medium text-fg-muted"
-									>
-										Drop alert{" "}
-										<span className="text-fg-subtle">(optional)</span>
-									</label>
-									<input
-										id="priceDropDelta"
-										type="number"
-										min="1"
-										step="1"
-										value={priceDropDelta}
-										onChange={(e) => setPriceDropDelta(e.target.value)}
-										placeholder="e.g. 20"
-										className="w-full rounded-lg border border-border bg-surface px-3.5 py-2.5 text-sm transition-colors focus:border-toucan-500 focus:outline-none focus:ring-2 focus:ring-toucan-500/20"
-									/>
-								</div>
-							</div>
-							{trackError && (
-								<div className="mt-3 rounded-lg bg-red-50 px-3.5 py-2.5 text-sm text-red-700">
-									{trackError}
+										{tracking ? "Saving..." : "Start tracking"}
+									</button>
 								</div>
 							)}
-							<button
-								type="button"
-								onClick={handleTrack}
-								disabled={tracking}
-								className="mt-4 w-full rounded-lg bg-toucan-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-toucan-700 hover:shadow-md disabled:opacity-50"
-							>
-								{tracking ? "Saving..." : "Start tracking"}
-							</button>
+						</div>
+					)}
+
+					{/* Filtered results info */}
+					{searched &&
+						offers.length > 0 &&
+						filteredAndSorted.length < offers.length && (
+							<p className="mb-3 text-sm text-fg-subtle">
+								Showing {filteredAndSorted.length} of {offers.length} results
+								(filtered)
+							</p>
+						)}
+
+					{/* No matches after filtering */}
+					{searched && offers.length > 0 && filteredAndSorted.length === 0 && (
+						<div className="mb-8 rounded-xl border border-dashed border-border px-8 py-12 text-center">
+							<p className="font-medium text-fg">
+								No results match your filters
+							</p>
+							<p className="mt-1 text-sm text-fg-subtle">
+								Try adjusting your filter options
+							</p>
+						</div>
+					)}
+
+					{/* Search results */}
+					{displayedResults.length > 0 && (
+						<div className="mb-8">
+							{filteredAndSorted.length === offers.length && (
+								<p className="mb-3 text-sm font-medium text-fg-subtle">
+									Found {filteredAndSorted.length} offer
+									{filteredAndSorted.length !== 1 ? "s" : ""}
+								</p>
+							)}
+							<div className="space-y-2">
+								{displayedResults.map((offer, i) => (
+									<div
+										key={offer.id}
+										className={`rounded-xl border bg-surface p-4 shadow-sm ${
+											i === 0
+												? "border-toucan-200 ring-1 ring-toucan-100 dark:border-toucan-800 dark:ring-toucan-900/50"
+												: "border-border"
+										}`}
+									>
+										<div className="flex items-center justify-between gap-4">
+											<div className="min-w-0 flex-1">
+												<div className="flex items-center gap-2">
+													<span className="font-semibold text-fg">
+														{offer.airline}
+													</span>
+													{offer.maxStops === 0 ? (
+														<span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+															Nonstop
+														</span>
+													) : (
+														<span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs font-medium text-fg-subtle">
+															{offer.maxStops} stop
+															{offer.maxStops > 1 ? "s" : ""}
+														</span>
+													)}
+												</div>
+												<div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-sm text-fg-subtle">
+													{offer.segments.map((s) => (
+														<span key={`${s.origin}-${s.destination}`}>
+															{formatTime(s.departingAt)}{" "}
+															{formatAirportValue(s.origin)} {"->"}{" "}
+															{formatAirportValue(s.destination)}{" "}
+															{formatTime(s.arrivingAt)}
+														</span>
+													))}
+												</div>
+											</div>
+											<div className="shrink-0 text-right">
+												<p className="text-xl font-bold tabular-nums text-fg">
+													${offer.totalAmount.toFixed(2)}
+												</p>
+												<p className="text-xs text-fg-subtle">
+													{offer.currency}
+												</p>
+											</div>
+										</div>
+									</div>
+								))}
+							</div>
+							{hasMoreResults && (
+								<button
+									type="button"
+									onClick={() => setShowAllResults(true)}
+									className="mt-3 w-full rounded-lg border border-border bg-surface px-4 py-2.5 text-sm font-medium text-fg-muted transition-colors hover:bg-surface-muted"
+								>
+									Show all {filteredAndSorted.length} results
+								</button>
+							)}
+						</div>
+					)}
+
+					{/* Tracked routes */}
+					<div className="mb-8">
+						<h2 className="mb-3 text-sm font-medium text-fg-subtle">
+							Tracked routes
+						</h2>
+						{routes.length === 0 ? (
+							<div className="rounded-2xl border border-dashed border-border px-8 py-12 text-center">
+								<p className="font-medium text-fg">No tracked routes yet</p>
+								<p className="mt-1 text-sm text-fg-subtle">
+									Search for flights above and start tracking a route
+								</p>
+							</div>
+						) : (
+							<div className="space-y-3">
+								{routes.map((route) => (
+									<RouteCard
+										key={route.id}
+										route={route}
+										onCancel={(id) =>
+											setRoutes((prev) => prev.filter((r) => r.id !== id))
+										}
+									/>
+								))}
+							</div>
+						)}
+					</div>
+
+					{/* Recent searches */}
+					{recentSearches.length > 0 && (
+						<div>
+							<h2 className="mb-3 text-sm font-medium text-fg-subtle">
+								Recent searches
+							</h2>
+							<div className="space-y-2">
+								{recentSearches.map((search) => (
+									<button
+										key={`${search.origin}-${search.destination}-${search.outboundDate}-${search.returnDate ?? ""}`}
+										type="button"
+										onClick={() => fillFromRecentSearch(search)}
+										className="flex w-full items-center justify-between rounded-lg border border-border bg-surface px-4 py-3 text-left text-sm transition-colors hover:border-border hover:bg-surface-muted"
+									>
+										<div className="flex items-center gap-2">
+											<span className="font-medium text-fg">
+												{formatAirportValue(search.origin)}
+											</span>
+											<span className="text-fg-subtle">{"->"}</span>
+											<span className="font-medium text-fg">
+												{formatAirportValue(search.destination)}
+											</span>
+											<span className="text-fg-subtle">
+												{formatDate(search.outboundDate)}
+												{search.returnDate &&
+													` - ${formatDate(search.returnDate)}`}
+											</span>
+										</div>
+										<div className="flex items-center gap-3 text-xs text-fg-subtle">
+											{search.bestPrice != null && (
+												<span className="font-medium text-fg-muted">
+													from ${search.bestPrice.toFixed(0)} {search.currency}
+												</span>
+											)}
+											<span>
+												{search.resultCount} offer
+												{search.resultCount !== 1 ? "s" : ""}
+											</span>
+										</div>
+									</button>
+								))}
+							</div>
 						</div>
 					)}
 				</div>
-			)}
-
-			{sorted.length > 0 && (
-				<div className="mb-8">
-					<p className="mb-3 text-sm font-medium text-fg-subtle">
-						Found {sorted.length} offer{sorted.length !== 1 ? "s" : ""}
-					</p>
-					<div className="space-y-2">
-						{sorted.slice(0, 5).map((offer, i) => (
-							<div
-								key={offer.id}
-								className={`rounded-xl border bg-surface p-4 shadow-sm ${
-									i === 0
-										? "border-toucan-200 ring-1 ring-toucan-100"
-										: "border-border"
-								}`}
-							>
-								<div className="flex items-center justify-between gap-4">
-									<div className="min-w-0 flex-1">
-										<div className="flex items-center gap-2">
-											<span className="font-semibold text-fg">
-												{offer.airline}
-											</span>
-											{offer.maxStops === 0 ? (
-												<span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
-													Nonstop
-												</span>
-											) : (
-												<span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs font-medium text-fg-subtle">
-													{offer.maxStops} stop{offer.maxStops > 1 ? "s" : ""}
-												</span>
-											)}
-										</div>
-										<div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-sm text-fg-subtle">
-											{offer.segments.map((s) => (
-												<span key={`${s.origin}-${s.destination}`}>
-													{formatTime(s.departingAt)}{" "}
-													{formatAirportValue(s.origin)} {"->"}{" "}
-													{formatAirportValue(s.destination)}{" "}
-													{formatTime(s.arrivingAt)}
-												</span>
-											))}
-										</div>
-									</div>
-									<div className="shrink-0 text-right">
-										<p className="text-xl font-bold tabular-nums text-fg">
-											${offer.totalAmount.toFixed(2)}
-										</p>
-										<p className="text-xs text-fg-subtle">{offer.currency}</p>
-									</div>
-								</div>
-							</div>
-						))}
-					</div>
-				</div>
-			)}
-
-			<div className="mb-8">
-				<h2 className="mb-3 text-sm font-medium text-fg-subtle">
-					Tracked routes
-				</h2>
-				{routes.length === 0 ? (
-					<div className="rounded-2xl border border-dashed border-border px-8 py-12 text-center">
-						<p className="font-medium text-fg">No tracked routes yet</p>
-						<p className="mt-1 text-sm text-fg-subtle">
-							Search for flights above and start tracking a route
-						</p>
-					</div>
-				) : (
-					<div className="space-y-3">
-						{routes.map((route) => (
-							<RouteCard
-								key={route.id}
-								route={route}
-								onCancel={(id) =>
-									setRoutes((prev) => prev.filter((r) => r.id !== id))
-								}
-							/>
-						))}
-					</div>
-				)}
 			</div>
-
-			{recentSearches.length > 0 && (
-				<div>
-					<h2 className="mb-3 text-sm font-medium text-fg-subtle">
-						Recent searches
-					</h2>
-					<div className="space-y-2">
-						{recentSearches.map((search) => (
-							<button
-								key={`${search.origin}-${search.destination}-${search.outboundDate}-${search.returnDate ?? ""}`}
-								type="button"
-								onClick={() => fillFromRecentSearch(search)}
-								className="flex w-full items-center justify-between rounded-lg border border-border bg-surface px-4 py-3 text-left text-sm transition-colors hover:border-border hover:bg-surface-muted"
-							>
-								<div className="flex items-center gap-2">
-									<span className="font-medium text-fg">
-										{formatAirportValue(search.origin)}
-									</span>
-									<span className="text-fg-subtle">{"->"}</span>
-									<span className="font-medium text-fg">
-										{formatAirportValue(search.destination)}
-									</span>
-									<span className="text-fg-subtle">
-										{formatDate(search.outboundDate)}
-										{search.returnDate && ` - ${formatDate(search.returnDate)}`}
-									</span>
-								</div>
-								<div className="flex items-center gap-3 text-xs text-fg-subtle">
-									{search.bestPrice != null && (
-										<span className="font-medium text-fg-muted">
-											from ${search.bestPrice.toFixed(0)} {search.currency}
-										</span>
-									)}
-									<span>
-										{search.resultCount} offer
-										{search.resultCount !== 1 ? "s" : ""}
-									</span>
-								</div>
-							</button>
-						))}
-					</div>
-				</div>
-			)}
 		</div>
 	);
 }
@@ -661,12 +793,12 @@ function RouteCard({
 					</div>
 					<div className="mt-2 flex flex-wrap gap-2">
 						{route.priceTarget && (
-							<span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+							<span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
 								Target: ${route.priceTarget}
 							</span>
 						)}
 						{route.priceDropDelta && (
-							<span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
+							<span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
 								Drop alert: ${route.priceDropDelta}
 							</span>
 						)}
@@ -713,7 +845,7 @@ function RouteCard({
 							type="button"
 							onClick={() => setConfirming(true)}
 							title="Stop tracking"
-							className="rounded-md p-1 text-fg-subtle transition-colors hover:bg-red-50 hover:text-red-500"
+							className="rounded-md p-1 text-fg-subtle transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/30"
 						>
 							<Trash2 size={16} />
 						</button>

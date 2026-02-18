@@ -28,4 +28,5 @@ jobs:
       - run: npx tsx scripts/check-prices.ts
         env:
           POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
+          POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
           DUFFEL_API_TOKEN: ${{ secrets.DUFFEL_API_TOKEN }}

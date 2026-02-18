@@ -33,11 +33,7 @@
 		"zod": "^3.24.0"
 	},
 	"pnpm": {
-		"onlyBuiltDependencies": [
-			"@biomejs/biome",
-			"esbuild",
-			"sharp"
-		]
+		"onlyBuiltDependencies": ["@biomejs/biome", "esbuild", "sharp"]
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^1.9.0",
