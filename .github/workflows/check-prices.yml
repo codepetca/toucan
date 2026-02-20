@@ -1,12 +1,6 @@
 name: Check Flight Prices
 
 on:
-  schedule:
-    # 4x/day: 6 AM, 12 PM, 6 PM, 11 PM ET (UTC-5)
-    - cron: "0 11 * * *"  # 6 AM ET
-    - cron: "0 17 * * *"  # 12 PM ET
-    - cron: "0 23 * * *"  # 6 PM ET
-    - cron: "0 4 * * *"   # 11 PM ET
   workflow_dispatch:
 
 jobs:
